@@ -5,6 +5,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ProductsModule } from './products/products.module';
 import { Module } from '@nestjs/common';
 import { Product } from './typeorm/entities/Product';
+import { User } from './typeorm/entities/User';
+import { UserModule } from './user/user.module';
 
 @Module({
   imports: [
@@ -21,11 +23,12 @@ import { Product } from './typeorm/entities/Product';
         port: configService.get<number>('DB_PORT'),
         username: configService.get<string>('DB_USERNAME'),
         database: configService.get<string>('DB_NAME'),
-        entities: [Product],
+        entities: [Product, User],
         synchronize: true,
       }),
     }),
     ProductsModule,
+    UserModule,
   ],
   controllers: [AppController],
   providers: [AppService],
