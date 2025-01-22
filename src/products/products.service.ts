@@ -1,6 +1,6 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { CreateProductDto } from 'src/dtos/CreateProductDto';
+import { CreateProductDto } from 'src/products/dtos/CreateProductDto';
 import { Product } from 'src/typeorm/entities/Product';
 import { Repository } from 'typeorm';
 import { ICreateProduct, IUpdateProduct } from 'utils/Interfaces';
