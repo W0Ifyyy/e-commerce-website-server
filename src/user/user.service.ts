@@ -58,4 +58,21 @@ export class UserService {
     }
     return { msg: 'User updated successfully!' };
   }
+  async deleteUserById(id: number) {
+    try {
+      let deletingUserOperation = await this.usersRepository.delete({ id });
+      if (deletingUserOperation.affected === 0)
+        throw new HttpException(
+          "The user you're trying to delete does not exist!",
+          HttpStatus.NOT_FOUND,
+        );
+      return { msg: 'User deleted succesfully' };
+    } catch (error) {
+      console.log(`An error occured while deleting the user: ${error.message}`);
+      throw new HttpException(
+        'An error occured while deleting the user',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
 }

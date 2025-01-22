@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -32,5 +33,9 @@ export class UserController {
     @Body() updateUserDto: UpdateUserDto,
   ) {
     return this.userService.updateUser(id, updateUserDto);
+  }
+  @Delete(':id')
+  deleteUserById(@Param('id', ParseIntPipe) id: number) {
+    return this.userService.deleteUserById(id);
   }
 }
