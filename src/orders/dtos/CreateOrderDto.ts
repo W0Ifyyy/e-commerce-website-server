@@ -19,6 +19,7 @@ export class CreateOrderDto {
   @Type(() => Number)
   userId: number;
 
+  @IsOptional()
   @IsArray()
   @IsNotEmpty({ each: true, message: 'Product IDs must be valid' })
   @IsNumber({}, { each: true })
@@ -29,6 +30,7 @@ export class CreateOrderDto {
   @Min(0, { message: 'Total amount must be at least 0' })
   totalAmount: number;
 
+  @IsOptional()
   @IsEnum(['PENDING', 'COMPLETED', 'CANCELED'], { message: 'Invalid status' })
-  status: 'PENDING' | 'COMPLETED' | 'CANCELED';
+  status?: 'PENDING' | 'COMPLETED' | 'CANCELED';
 }

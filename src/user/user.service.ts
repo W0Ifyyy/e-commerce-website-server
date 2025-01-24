@@ -11,11 +11,17 @@ export class UserService {
     @InjectRepository(User) private usersRepository: Repository<User>,
   ) {}
   async getAllUsers() {
-    let users = await this.usersRepository.find();
+    let users = await this.usersRepository.find({ relations: ['orders'] });
     return users;
   }
   async getUserById(id: number) {
-    let user = await this.usersRepository.findOne({ where: { id } });
+    if (!id || id <= 0) {
+      throw new HttpException('Invalid user ID', HttpStatus.BAD_REQUEST);
+    }
+    let user = await this.usersRepository.findOne({
+      where: { id },
+      relations: ['orders', 'orders.products'],
+    });
     if (!user)
       throw new HttpException(
         `User with ID ${id} not found`,
@@ -49,6 +55,9 @@ export class UserService {
   }
   async updateUser(id: number, params: IUpdateUser) {
     //todo: check if params are undefined
+    if (!id || id <= 0) {
+      throw new HttpException('Invalid user ID', HttpStatus.BAD_REQUEST);
+    }
     const result = await this.usersRepository.update(id, params);
     if (result.affected === 0) {
       throw new HttpException(
@@ -59,6 +68,9 @@ export class UserService {
     return { msg: 'User updated successfully!' };
   }
   async deleteUserById(id: number) {
+    if (!id || id <= 0) {
+      throw new HttpException('Invalid user ID', HttpStatus.BAD_REQUEST);
+    }
     try {
       let deletingUserOperation = await this.usersRepository.delete({ id });
       if (deletingUserOperation.affected === 0)

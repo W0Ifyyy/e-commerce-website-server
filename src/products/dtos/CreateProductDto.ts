@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   IsNotEmpty,
   IsNumber,
+  IsOptional,
   IsString,
   IsUrl,
   MaxLength,
@@ -23,6 +24,7 @@ export class CreateProductDto {
   @Min(0, { message: 'Price must be at least 0' })
   price: number;
 
+  @IsOptional()
   @IsUrl({}, { message: 'Image URL must be a valid URL' })
-  imageUrl: string;
+  imageUrl?: string;
 }

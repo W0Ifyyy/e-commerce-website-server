@@ -2,7 +2,7 @@ export interface ICreateProduct {
   name: string;
   description: string;
   price: number;
-  imageUrl: string;
+  imageUrl?: string;
 }
 
 export interface IUpdateProduct {
@@ -22,4 +22,12 @@ export interface IUpdateUser {
   name?: string;
   email?: string;
   password?: string;
+}
+
+export interface ICreateOrder {
+  name?: string;
+  userId: number;
+  productIds?: number[];
+  totalAmount: number;
+  status?: 'PENDING' | 'COMPLETED' | 'CANCELED';
 }
