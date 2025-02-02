@@ -3,8 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Order } from 'src/typeorm/entities/Order';
 import { Product } from 'src/typeorm/entities/Product';
 import { User } from 'src/typeorm/entities/User';
-import { Repository } from 'typeorm';
-import { ICreateOrder } from 'utils/Interfaces';
+import { In, Repository } from 'typeorm';
+import { ICreateOrder, IUpdateOrder } from 'utils/Interfaces';
 
 @Injectable()
 export class OrdersService {
@@ -73,9 +73,9 @@ export class OrdersService {
         createOrderParams.productIds &&
         createOrderParams.productIds.length > 0
       ) {
-        products = await this.productRepository.findByIds(
-          createOrderParams.productIds,
-        );
+        products = await this.productRepository.find({
+          where: { id: In(createOrderParams.productIds) },
+        });
 
         if (products.length !== createOrderParams.productIds.length) {
           throw new HttpException(
@@ -100,6 +100,48 @@ export class OrdersService {
     } catch (error) {
       throw new HttpException(
         `An error occurred while creating the order: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+  async updateOrder(id: number, updateOrderParams: IUpdateOrder) {
+    if (id <= 0 || !id)
+      throw new HttpException('Invalid Order ID', HttpStatus.BAD_REQUEST);
+    let order = await this.orderRepository.findOne({ where: { id } });
+    if (!order)
+      throw new HttpException(
+        'Order with this ID does not exist!',
+        HttpStatus.NOT_FOUND,
+      );
+    try {
+      let result = await this.orderRepository.update(id, updateOrderParams);
+      if (result.affected === 0)
+        throw new HttpException(
+          'Order with that id does not exist!',
+          HttpStatus.NOT_FOUND,
+        );
+      return { msg: 'Order updated succesfully!', statusCode: 200 };
+    } catch (error: any) {
+      throw new HttpException(
+        `An error occured while updating the order... Error: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+  async deleteOrder(id: number) {
+    if (id <= 0 || !id)
+      throw new HttpException('Invalid Order ID', HttpStatus.BAD_REQUEST);
+    try {
+      let result = await this.orderRepository.delete(id);
+      if (result.affected === 0)
+        throw new HttpException(
+          "The order you're trying to delete does not exist!",
+          HttpStatus.NOT_FOUND,
+        );
+      return { msg: 'Order deleted successfully', statusCode: 200 };
+    } catch (error: any) {
+      throw new HttpException(
+        `An error occured while deleting the order... Error: ${error.message}`,
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

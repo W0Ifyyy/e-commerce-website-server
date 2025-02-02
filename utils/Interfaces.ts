@@ -31,3 +31,11 @@ export interface ICreateOrder {
   totalAmount: number;
   status?: 'PENDING' | 'COMPLETED' | 'CANCELED';
 }
+
+export interface IUpdateOrder {
+  name?: string;
+  userId?: number;
+  productIds?: number[];
+  totalAmount?: number;
+  status?: 'PENDING' | 'COMPLETED' | 'CANCELED';
+}
