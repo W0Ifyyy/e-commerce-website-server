@@ -9,6 +9,7 @@ import { User } from './typeorm/entities/User';
 import { UserModule } from './user/user.module';
 import { OrdersModule } from './orders/orders.module';
 import { Order } from './typeorm/entities/Order';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { Order } from './typeorm/entities/Order';
     ProductsModule,
     UserModule,
     OrdersModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

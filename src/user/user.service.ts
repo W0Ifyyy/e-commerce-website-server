@@ -87,4 +87,14 @@ export class UserService {
       );
     }
   }
+  async findOne(username: string) {
+    try {
+      return await this.usersRepository.findOne({ where: { name: username } });
+    } catch (error) {
+      throw new HttpException(
+        `An error occured while finding user by username, error: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
 }
