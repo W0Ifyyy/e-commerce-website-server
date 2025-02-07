@@ -20,6 +20,7 @@ export class AuthController {
     private authService: AuthService,
     private userService: UserService,
   ) {}
+
   @Public()
   @UseGuards(LocalAuthGuard)
   @Post('login')
