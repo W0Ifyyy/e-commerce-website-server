@@ -30,4 +30,7 @@ export class User {
 
   @UpdateDateColumn({ type: 'timestamp' })
   updatedAt: Date;
+
+  @Column({ nullable: true })
+  refreshToken: string;
 }

@@ -44,7 +44,10 @@ export class UserService {
         ...params,
         password: hashedPassword,
       });
-      return { msg: 'User created succesfully!', user: newUser };
+      return {
+        msg: 'User created succesfully!',
+        user: { ...newUser, password: null },
+      };
     } catch (error: any) {
       console.log(error);
       throw new HttpException(
@@ -53,6 +56,7 @@ export class UserService {
       );
     }
   }
+
   async updateUser(id: number, params: IUpdateUser) {
     //todo: check if params are undefined
     if (!id || id <= 0) {
@@ -96,5 +100,13 @@ export class UserService {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+  async updateRefreshToken(userId: number, refreshToken: string) {
+    return this.usersRepository.update(userId, { refreshToken });
+  }
+
+  async getRefreshToken(userId: number) {
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+    return user ? { name: user.name, refreshToken: user.refreshToken } : null;
   }
 }

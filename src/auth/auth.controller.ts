@@ -38,4 +38,10 @@ export class AuthController {
   createUser(@Body() createUserDto: CreateUserDto) {
     return this.userService.createUser(createUserDto);
   }
+
+  @Public()
+  @Post('refresh')
+  async refresh(@Body('refresh_token') token: string) {
+    return this.authService.refreshToken(token);
+  }
 }
