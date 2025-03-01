@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  ParseIntPipe,
   Post,
   Request,
   UseGuards,
@@ -43,5 +44,10 @@ export class AuthController {
   @Post('refresh')
   async refresh(@Body('refresh_token') token: string) {
     return this.authService.refreshToken(token);
+  }
+  @UseGuards(JwtAuthGuard)
+  @Post('logout')
+  async logout(@Request() req) {
+    return this.authService.logout(req.user.sub);
   }
 }

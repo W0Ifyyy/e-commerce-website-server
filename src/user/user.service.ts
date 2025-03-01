@@ -109,4 +109,23 @@ export class UserService {
     const user = await this.usersRepository.findOne({ where: { id: userId } });
     return user ? { name: user.name, refreshToken: user.refreshToken } : null;
   }
+
+  async removeRefreshToken(userId: number) {
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+    });
+    if (!user)
+      throw new HttpException(
+        `User with id of: ${userId} does not exist!`,
+        HttpStatus.NOT_FOUND,
+      );
+    try {
+      await this.usersRepository.update(user, { refreshToken: null });
+    } catch (err: any) {
+      throw new HttpException(
+        `An error occured while creating the user. Error: ${err.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
 }
