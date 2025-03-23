@@ -12,10 +12,12 @@ import {
 import { ProductsService } from './products.service';
 import { CreateProductDto } from 'src/products/dtos/CreateProductDto';
 import { UpdateProductDto } from 'src/products/dtos/UpdateProductDto';
+import { Public } from 'utils/publicDecorator';
 
 @Controller('products')
 export class ProductsController {
   constructor(private productService: ProductsService) {}
+  @Public()
   @Get()
   getProducts() {
     return this.productService.getProducts();
