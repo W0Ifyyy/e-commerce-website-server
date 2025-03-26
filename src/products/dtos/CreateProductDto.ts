@@ -24,6 +24,11 @@ export class CreateProductDto {
   @Min(0, { message: 'Price must be at least 0' })
   price: number;
 
+  @IsNumber()
+  @Type(() => Number)
+  @IsNotEmpty()
+  category: number;
+
   @IsOptional()
   @IsUrl({}, { message: 'Image URL must be a valid URL' })
   imageUrl?: string;

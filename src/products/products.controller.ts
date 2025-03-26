@@ -26,6 +26,7 @@ export class ProductsController {
   getProductById(@Param('id', ParseIntPipe) id: number) {
     return this.productService.getProductsById(id);
   }
+  @Public()
   @Post()
   @HttpCode(201)
   createProduct(@Body() createProductParams: CreateProductDto) {

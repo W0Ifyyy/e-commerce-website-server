@@ -1,7 +1,18 @@
+export interface ICreateCategory {
+  name: string;
+  imageUrl: string;
+}
+
+export interface IUpdateCategory {
+  name?: string;
+  imageUrl?: string;
+}
+
 export interface ICreateProduct {
   name: string;
   description: string;
   price: number;
+  category: number;
   imageUrl?: string;
 }
 
@@ -9,6 +20,7 @@ export interface IUpdateProduct {
   name?: string;
   description?: string;
   price?: number;
+  category?: number;
   imageUrl?: string;
 }
 

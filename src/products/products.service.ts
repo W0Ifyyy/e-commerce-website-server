@@ -1,5 +1,6 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { CategoryService } from 'src/category/category.service';
 import { CreateProductDto } from 'src/products/dtos/CreateProductDto';
 import { Product } from 'src/typeorm/entities/Product';
 import { Repository } from 'typeorm';
@@ -9,10 +10,11 @@ import { ICreateProduct, IUpdateProduct } from 'utils/Interfaces';
 export class ProductsService {
   constructor(
     @InjectRepository(Product) private productRepository: Repository<Product>,
+    private categoryService: CategoryService,
   ) {}
   async getProducts() {
     let products = await this.productRepository.find({
-      relations: ['orders'],
+      relations: ['orders', 'categoryId'],
     });
     if (!products || products.length === 0)
       throw new HttpException('No products found', HttpStatus.NOT_FOUND);
@@ -37,12 +39,21 @@ export class ProductsService {
     let ifExists = await this.productRepository.findOne({
       where: { name: params.name },
     });
+    const categoryEntity = await this.categoryService.getCategoryById(
+      params.category,
+    );
+    if (!categoryEntity) {
+      throw new HttpException('Category not found', HttpStatus.NOT_FOUND);
+    }
     if (ifExists)
       throw new HttpException(
         'This product with the same name already exists',
         HttpStatus.CONFLICT,
       );
-    let newProduct = this.productRepository.create(params);
+    let newProduct = this.productRepository.create({
+      ...params,
+      category: categoryEntity,
+    });
     await this.productRepository.save(newProduct);
     return { msg: 'Product created succesfully!' };
   }
@@ -62,6 +73,7 @@ export class ProductsService {
   }
 
   async updateProduct(id: number, params: IUpdateProduct) {
+    let categoryEntity;
     if (!id || id <= 0) {
       throw new HttpException('Invalid product ID', HttpStatus.BAD_REQUEST);
     }
@@ -71,7 +83,19 @@ export class ProductsService {
         'Product with this id doesnt exist!',
         HttpStatus.NOT_FOUND,
       );
-    await this.productRepository.save({ ...product, ...params });
+    if (params.category) {
+      categoryEntity = await this.categoryService.getCategoryById(
+        params.category,
+      );
+      if (!categoryEntity) {
+        throw new HttpException('Category not found', HttpStatus.NOT_FOUND);
+      }
+    }
+    await this.productRepository.save({
+      ...product,
+      ...params,
+      category: categoryEntity,
+    });
     return { msg: 'Product updated succesfully!', statusCode: 200 };
   }
 }

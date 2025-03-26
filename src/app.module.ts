@@ -10,6 +10,8 @@ import { UserModule } from './user/user.module';
 import { OrdersModule } from './orders/orders.module';
 import { Order } from './typeorm/entities/Order';
 import { AuthModule } from './auth/auth.module';
+import { Category } from './typeorm/entities/Category';
+import { CategoryModule } from './category/category.module';
 
 @Module({
   imports: [
@@ -26,7 +28,7 @@ import { AuthModule } from './auth/auth.module';
         port: configService.get<number>('DB_PORT'),
         username: configService.get<string>('DB_USERNAME'),
         database: configService.get<string>('DB_NAME'),
-        entities: [Product, User, Order],
+        entities: [Product, User, Order, Category],
         synchronize: true,
       }),
     }),
@@ -34,6 +36,7 @@ import { AuthModule } from './auth/auth.module';
     UserModule,
     OrdersModule,
     AuthModule,
+    CategoryModule,
   ],
   controllers: [AppController],
   providers: [AppService],
