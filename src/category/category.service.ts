@@ -11,6 +11,12 @@ export class CategoryService {
     private categoryRepository: Repository<Category>,
   ) {}
   async getAllCategories() {
+    let categories = await this.categoryRepository.find();
+    if (!categories || categories.length === 0)
+      throw new HttpException('No categories found', HttpStatus.NOT_FOUND);
+    return categories;
+  }
+  async getAllCategoriesWithDetails() {
     let categories = await this.categoryRepository.find({
       relations: ['products'],
     });

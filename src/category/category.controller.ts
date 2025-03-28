@@ -22,6 +22,11 @@ export class CategoryController {
   getCategories() {
     return this.categoryService.getAllCategories();
   }
+  @Public()
+  @Get('details')
+  getCategoriesWithDetails() {
+    return this.categoryService.getAllCategoriesWithDetails();
+  }
 
   @Get(':id')
   getCategoryById(@Param('id', ParseIntPipe) id: number) {
