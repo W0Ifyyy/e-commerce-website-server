@@ -14,7 +14,7 @@ export class ProductsService {
   ) {}
   async getProducts() {
     let products = await this.productRepository.find({
-      relations: ['orders', 'categoryId'],
+      relations: ['orders', 'category'],
     });
     if (!products || products.length === 0)
       throw new HttpException('No products found', HttpStatus.NOT_FOUND);
