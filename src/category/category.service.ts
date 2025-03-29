@@ -16,7 +16,19 @@ export class CategoryService {
       throw new HttpException('No categories found', HttpStatus.NOT_FOUND);
     return categories;
   }
-  async getAllCategoriesWithDetails() {
+  async getAllCategoriesWithDetails(id?: number) {
+    if (id) {
+      let category = await this.categoryRepository.findOne({
+        where: { id },
+        relations: ['products'],
+      });
+      if (!category)
+        throw new HttpException(
+          'There is no category with this id',
+          HttpStatus.NOT_FOUND,
+        );
+      return category;
+    }
     let categories = await this.categoryRepository.find({
       relations: ['products'],
     });
