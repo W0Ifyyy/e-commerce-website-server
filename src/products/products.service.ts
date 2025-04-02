@@ -1,9 +1,8 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CategoryService } from 'src/category/category.service';
-import { CreateProductDto } from 'src/products/dtos/CreateProductDto';
 import { Product } from 'src/typeorm/entities/Product';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { ICreateProduct, IUpdateProduct } from 'utils/Interfaces';
 
 @Injectable()
@@ -20,7 +19,7 @@ export class ProductsService {
       throw new HttpException('No products found', HttpStatus.NOT_FOUND);
     return products;
   }
-  async getProductsById(id: number) {
+  async getProductById(id: number) {
     if (!id || id <= 0) {
       throw new HttpException('Invalid product ID', HttpStatus.BAD_REQUEST);
     }
@@ -34,6 +33,23 @@ export class ProductsService {
         HttpStatus.NOT_FOUND,
       );
     return product;
+  }
+  async getProductsByIds(ids: number[]) {
+    console.log(ids);
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new HttpException('Invalid product IDs', HttpStatus.BAD_REQUEST);
+    }
+    const products = await this.productRepository.find({
+      where: { id: In(ids) },
+      relations: ['orders', 'category'],
+    });
+    if (!products || products.length === 0) {
+      throw new HttpException(
+        'No products found for the given IDs',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    return products;
   }
   async createProduct(params: ICreateProduct) {
     let ifExists = await this.productRepository.findOne({

@@ -24,7 +24,12 @@ export class ProductsController {
   }
   @Get(':id')
   getProductById(@Param('id', ParseIntPipe) id: number) {
-    return this.productService.getProductsById(id);
+    return this.productService.getProductById(id);
+  }
+  @Public()
+  @Post('/all')
+  getProductsByIds(@Body() ids: number[]) {
+    return this.productService.getProductsByIds(ids);
   }
   @Public()
   @Post()
