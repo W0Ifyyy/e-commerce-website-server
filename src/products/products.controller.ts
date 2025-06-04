@@ -8,6 +8,7 @@ import {
   ParseIntPipe,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from 'src/products/dtos/CreateProductDto';
@@ -21,6 +22,11 @@ export class ProductsController {
   @Get()
   getProducts() {
     return this.productService.getProducts();
+  }
+  @Public()
+  @Get('search') // route is now /products/search?name=xxx
+  getProductsBySearch(@Query('name') name: string) {
+    return this.productService.getProductsByNameSearch(name);
   }
   @Get(':id')
   getProductById(@Param('id', ParseIntPipe) id: number) {

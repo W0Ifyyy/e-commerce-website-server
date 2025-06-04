@@ -2,7 +2,7 @@ import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CategoryService } from 'src/category/category.service';
 import { Product } from 'src/typeorm/entities/Product';
-import { Repository, In } from 'typeorm';
+import { Repository, In, Like } from 'typeorm';
 import { ICreateProduct, IUpdateProduct } from 'utils/Interfaces';
 
 @Injectable()
@@ -49,6 +49,25 @@ export class ProductsService {
         HttpStatus.NOT_FOUND,
       );
     }
+    return products;
+  }
+  async getProductsByNameSearch(name: string) {
+    if (!name || name.trim() === '') {
+      throw new HttpException('Invalid product name', HttpStatus.BAD_REQUEST);
+    }
+
+    const products = await this.productRepository.find({
+      where: { name: Like(`%${name}%`) },
+      relations: ['orders', 'category'],
+    });
+
+    if (!products || products.length === 0) {
+      throw new HttpException(
+        'No products found matching this name',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
     return products;
   }
   async createProduct(params: ICreateProduct) {
