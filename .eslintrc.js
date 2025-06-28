@@ -9,6 +9,12 @@ module.exports = {
   extends: [
     'plugin:@typescript-eslint/recommended',
     'plugin:prettier/recommended',
+    [
+      'error',
+      {
+        endOfLine: 'auto',
+      },
+    ],
   ],
   root: true,
   env: {
