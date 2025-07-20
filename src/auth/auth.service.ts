@@ -27,7 +27,7 @@ export class AuthService {
   }
   async login(user: any) {
     const payload = { username: user.name, sub: user.id };
-    const access_token = this.jwtService.sign(payload, { expiresIn: '60s' });
+    const access_token = this.jwtService.sign(payload, { expiresIn: '15m' });
     const refresh_token = this.jwtService.sign(payload, { expiresIn: '7d' });
     const hashedRefreshToken = await hashToken(refresh_token);
     await this.usersService.updateRefreshToken(user.id, hashedRefreshToken);
