@@ -88,7 +88,11 @@ export class OrdersService {
       const order = this.orderRepository.create({
         ...createOrderParams,
         user,
-        products,
+        items: products.map((product) => ({
+          product,
+          quantity: 1, // <- tu możesz ustawić ilość (np. z requestu)
+          unitPrice: product.price, // <- cena w momencie zakupu
+        })),
       });
 
       const savedOrder = await this.orderRepository.save(order);

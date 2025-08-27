@@ -3,10 +3,12 @@ import {
   Entity,
   ManyToMany,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { Order } from './Order';
 import { Category } from './Category';
+import { OrderItem } from './OrderItem';
 
 @Entity()
 export class Product {
@@ -25,8 +27,8 @@ export class Product {
   @Column({ nullable: true })
   imageUrl: string;
 
-  @ManyToMany(() => Order, (order) => order.products)
-  orders: Order[];
+  @OneToMany(() => OrderItem, (item) => item.product)
+  orderItems: OrderItem[];
 
   @ManyToOne(() => Category, (Category) => Category.products, {
     nullable: false,

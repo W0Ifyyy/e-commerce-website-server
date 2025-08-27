@@ -5,11 +5,13 @@ import {
   JoinTable,
   ManyToMany,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { User } from './User';
 import { Product } from './Product';
+import { OrderItem } from './OrderItem';
 
 @Entity()
 export class Order {
@@ -22,10 +24,11 @@ export class Order {
   @ManyToOne(() => User, (user) => user.orders, { eager: true })
   user: User;
 
-  @ManyToMany(() => Product, (product) => product.orders, { eager: true })
-  @JoinTable()
-  products: Product[];
-
+  @OneToMany(() => OrderItem, (item) => item.order, {
+    cascade: true,
+    eager: true,
+  })
+  items: OrderItem[];
   @Column()
   totalAmount: number;
 

@@ -13,7 +13,7 @@ export class ProductsService {
   ) {}
   async getProducts() {
     let products = await this.productRepository.find({
-      relations: ['orders', 'category'],
+      relations: ['orderItems', 'category'],
     });
     if (!products || products.length === 0)
       throw new HttpException('No products found', HttpStatus.NOT_FOUND);
@@ -25,7 +25,7 @@ export class ProductsService {
     }
     let product = await this.productRepository.findOne({
       where: { id },
-      relations: ['orders'],
+      relations: ['orderItems'],
     });
     if (!product)
       throw new HttpException(
@@ -41,7 +41,7 @@ export class ProductsService {
     }
     const products = await this.productRepository.find({
       where: { id: In(ids) },
-      relations: ['orders', 'category'],
+      relations: ['orderItems', 'category'],
     });
     if (!products || products.length === 0) {
       throw new HttpException(
@@ -58,7 +58,7 @@ export class ProductsService {
 
     const products = await this.productRepository.find({
       where: { name: Like(`%${name}%`) },
-      relations: ['orders', 'category'],
+      relations: ['orderItems', 'category'],
     });
 
     if (products.length === 0) return null;

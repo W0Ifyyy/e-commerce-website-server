@@ -9,7 +9,7 @@ async function bootstrap() {
   app.use(cookieParser());
 
   app.enableCors({
-    origin: 'http://localhost:3000', //todo change to env variable
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3000', //todo change to env variable
     credentials: true,
   });
 

@@ -27,7 +27,10 @@ export class UserService {
         `User with ID ${id} not found`,
         HttpStatus.NOT_FOUND,
       );
-    return user;
+
+    const safeUser = { ...user, createdAt: user.createdAt.toISOString() };
+
+    return safeUser;
   }
   async createUser(params: ICreateUser) {
     let existingUser = await this.usersRepository.findOne({
