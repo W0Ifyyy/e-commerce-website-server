@@ -33,6 +33,7 @@ export class CategoryController {
     return this.categoryService.getAllCategoriesWithDetails(id);
   }
 
+  @Public()
   @Get(':id')
   getCategoryById(@Param('id', ParseIntPipe) id: number) {
     return this.categoryService.getCategoryById(id);
