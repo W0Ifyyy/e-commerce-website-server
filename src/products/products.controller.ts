@@ -28,6 +28,7 @@ export class ProductsController {
   getProductsBySearch(@Query('name') name: string) {
     return this.productService.getProductsByNameSearch(name);
   }
+  @Public()
   @Get(':id')
   getProductById(@Param('id', ParseIntPipe) id: number) {
     return this.productService.getProductById(id);

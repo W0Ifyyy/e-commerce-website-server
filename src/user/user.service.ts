@@ -20,7 +20,7 @@ export class UserService {
     }
     let user = await this.usersRepository.findOne({
       where: { id },
-      relations: ['orders', 'orders.products'],
+      relations: ['orders', 'orders.items.product'],
     });
     if (!user)
       throw new HttpException(
