@@ -13,6 +13,7 @@ import { AuthModule } from './auth/auth.module';
 import { Category } from './typeorm/entities/Category';
 import { CategoryModule } from './category/category.module';
 import { OrderItem } from './typeorm/entities/OrderItem';
+import { CheckoutModule } from './checkout/checkout.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { OrderItem } from './typeorm/entities/OrderItem';
     OrdersModule,
     AuthModule,
     CategoryModule,
+    CheckoutModule,
   ],
   controllers: [AppController],
   providers: [AppService],

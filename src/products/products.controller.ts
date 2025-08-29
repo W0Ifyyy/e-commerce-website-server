@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   Param,
+  ParseArrayPipe,
   ParseIntPipe,
   Post,
   Put,
@@ -35,7 +36,10 @@ export class ProductsController {
   }
   @Public()
   @Post('/all')
-  getProductsByIds(@Body() ids: number[]) {
+  getProductsByIds(
+    @Body('ids', new ParseArrayPipe({ items: Number }))
+    ids: number[],
+  ) {
     return this.productService.getProductsByIds(ids);
   }
   @Public()
