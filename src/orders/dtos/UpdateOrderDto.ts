@@ -2,12 +2,13 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsEnum,
-  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { OrderItemDto } from './CreateOrderDto';
 
 export class UpdateOrderDto {
   @IsOptional()
@@ -22,10 +23,9 @@ export class UpdateOrderDto {
 
   @IsOptional()
   @IsArray()
-  @IsNotEmpty({ each: true, message: 'Product IDs must be valid' })
-  @IsNumber({}, { each: true })
-  @Type(() => Number)
-  productIds?: number[];
+  @ValidateNested({ each: true })
+  @Type(() => OrderItemDto)
+  items?: OrderItemDto[];
 
   @IsOptional()
   @IsNumber()

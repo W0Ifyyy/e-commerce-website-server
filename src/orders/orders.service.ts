@@ -16,16 +16,17 @@ export class OrdersService {
   async getAllOrders() {
     try {
       let orders = await this.orderRepository.find({
-        relations: ['user', 'products'],
+        relations: ['user', 'items', 'items.product'],
       });
-      return { msg: 'Orders retrieved succesfully', orders };
+      return { msg: 'Orders retrieved successfully', orders };
     } catch (error) {
       throw new HttpException(
-        `An error occured while getting all orders: ${error.message}`,
+        `An error occurred while getting all orders: ${error.message}`,
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
+
   async getOrderById(id: number) {
     if (!id || id <= 0) {
       throw new HttpException('Invalid order ID', HttpStatus.BAD_REQUEST);
@@ -33,17 +34,17 @@ export class OrdersService {
     try {
       let order = await this.orderRepository.findOne({
         where: { id },
-        relations: ['user', 'products'],
+        relations: ['user', 'items', 'items.product'],
       });
       if (!order)
         throw new HttpException(
           'Order with that id does not exist!',
           HttpStatus.NOT_FOUND,
         );
-      return { statusCode: 200, msg: 'Order retrieved succesfully', order };
+      return { statusCode: 200, msg: 'Order retrieved successfully', order };
     } catch (error) {
       throw new HttpException(
-        `An error occured while getting order by id: ${error.message}`,
+        `An error occurred while getting order by id: ${error.message}`,
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -67,32 +68,53 @@ export class OrdersService {
         );
       }
 
-      // Resolve the products from the database (if productIds are provided)
-      let products = [];
-      if (
-        createOrderParams.productIds &&
-        createOrderParams.productIds.length > 0
-      ) {
-        products = await this.productRepository.find({
-          where: { id: In(createOrderParams.productIds) },
+      // If items are provided, fetch all products at once to validate and use them
+      let productMap = new Map();
+      if (createOrderParams.items && createOrderParams.items.length > 0) {
+        const productIds = createOrderParams.items.map(
+          (item) => item.productId,
+        );
+        const products = await this.productRepository.find({
+          where: { id: In(productIds) },
         });
 
-        if (products.length !== createOrderParams.productIds.length) {
+        if (products.length !== productIds.length) {
           throw new HttpException(
             'One or more products not found',
             HttpStatus.NOT_FOUND,
           );
         }
+
+        // Create a map for quick product lookup
+        products.forEach((product) => {
+          productMap.set(product.id, product);
+        });
       }
 
+      // Create order items from the provided items
+      const orderItems =
+        createOrderParams.items?.map((item) => {
+          const product = productMap.get(item.productId);
+          if (!product) {
+            throw new HttpException(
+              `Product with ID ${item.productId} not found`,
+              HttpStatus.NOT_FOUND,
+            );
+          }
+
+          return {
+            product,
+            quantity: item.quantity,
+            unitPrice: product.price,
+          };
+        }) || [];
+
       const order = this.orderRepository.create({
-        ...createOrderParams,
+        name: createOrderParams.name,
         user,
-        items: products.map((product) => ({
-          product,
-          quantity: 1, // <- tu możesz ustawić ilość (np. z requestu)
-          unitPrice: product.price, // <- cena w momencie zakupu
-        })),
+        items: orderItems,
+        totalAmount: createOrderParams.totalAmount,
+        status: createOrderParams.status || 'PENDING',
       });
 
       const savedOrder = await this.orderRepository.save(order);
@@ -111,23 +133,53 @@ export class OrdersService {
   async updateOrder(id: number, updateOrderParams: IUpdateOrder) {
     if (id <= 0 || !id)
       throw new HttpException('Invalid Order ID', HttpStatus.BAD_REQUEST);
-    let order = await this.orderRepository.findOne({ where: { id } });
-    if (!order)
-      throw new HttpException(
-        'Order with this ID does not exist!',
-        HttpStatus.NOT_FOUND,
-      );
+
     try {
-      let result = await this.orderRepository.update(id, updateOrderParams);
-      if (result.affected === 0)
+      let order = await this.orderRepository.findOne({
+        where: { id },
+        relations: ['items'],
+      });
+
+      if (!order)
         throw new HttpException(
-          'Order with that id does not exist!',
+          'Order with this ID does not exist!',
           HttpStatus.NOT_FOUND,
         );
-      return { msg: 'Order updated succesfully!', statusCode: 200 };
+
+      // Update basic properties
+      if (updateOrderParams.name !== undefined) {
+        order.name = updateOrderParams.name;
+      }
+
+      if (updateOrderParams.status !== undefined) {
+        order.status = updateOrderParams.status;
+      }
+
+      if (updateOrderParams.totalAmount !== undefined) {
+        order.totalAmount = updateOrderParams.totalAmount;
+      }
+
+      // Update user if needed
+      if (updateOrderParams.userId) {
+        const user = await this.userRepository.findOne({
+          where: { id: updateOrderParams.userId },
+        });
+
+        if (!user) {
+          throw new HttpException(
+            `User with ID ${updateOrderParams.userId} not found`,
+            HttpStatus.NOT_FOUND,
+          );
+        }
+
+        order.user = user;
+      }
+
+      await this.orderRepository.save(order);
+      return { msg: 'Order updated successfully!', statusCode: 200 };
     } catch (error: any) {
       throw new HttpException(
-        `An error occured while updating the order... Error: ${error.message}`,
+        `An error occurred while updating the order... Error: ${error.message}`,
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

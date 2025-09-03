@@ -7,7 +7,17 @@ import {
   IsOptional,
   IsString,
   Min,
+  ValidateNested,
 } from 'class-validator';
+
+export class OrderItemDto {
+  @IsNumber()
+  productId: number;
+
+  @IsNumber()
+  @Min(1)
+  quantity: number;
+}
 
 export class CreateOrderDto {
   @IsOptional()
@@ -21,10 +31,9 @@ export class CreateOrderDto {
 
   @IsOptional()
   @IsArray()
-  @IsNotEmpty({ each: true, message: 'Product IDs must be valid' })
-  @IsNumber({}, { each: true })
-  @Type(() => Number)
-  productIds: number[];
+  @ValidateNested({ each: true })
+  @Type(() => OrderItemDto)
+  items: OrderItemDto[];
 
   @IsNumber()
   @Min(0, { message: 'Total amount must be at least 0' })

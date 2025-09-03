@@ -1,3 +1,5 @@
+import { OrderItemDto } from 'src/orders/dtos/CreateOrderDto';
+
 export interface ICreateCategory {
   name: string;
   imageUrl: string;
@@ -39,7 +41,7 @@ export interface IUpdateUser {
 export interface ICreateOrder {
   name?: string;
   userId: number;
-  productIds?: number[];
+  items?: OrderItemDto[];
   totalAmount: number;
   status?: 'PENDING' | 'COMPLETED' | 'CANCELED';
 }
@@ -47,7 +49,7 @@ export interface ICreateOrder {
 export interface IUpdateOrder {
   name?: string;
   userId?: number;
-  productIds?: number[];
+  items?: OrderItemDto[];
   totalAmount?: number;
   status?: 'PENDING' | 'COMPLETED' | 'CANCELED';
 }
