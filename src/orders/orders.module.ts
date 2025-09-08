@@ -10,5 +10,6 @@ import { User } from 'src/typeorm/entities/User';
   imports: [TypeOrmModule.forFeature([Order, Product, User])],
   controllers: [OrdersController],
   providers: [OrdersService],
+  exports: [OrdersService],
 })
 export class OrdersModule {}
