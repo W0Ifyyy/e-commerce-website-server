@@ -28,7 +28,11 @@ export class UserService {
         HttpStatus.NOT_FOUND,
       );
 
-    const safeUser = { ...user, createdAt: user.createdAt.toISOString() };
+    const safeUser = {
+      ...user,
+      createdAt: user.createdAt.toISOString(),
+      password: null,
+    };
 
     return safeUser;
   }

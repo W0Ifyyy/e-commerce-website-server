@@ -20,4 +20,19 @@ export class UpdateUserDto {
   @IsString()
   @IsStrongPassword()
   password?: string;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  preferredCurrency?: string;
+
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @IsOptional()
+  emailNotifications?: boolean;
 }

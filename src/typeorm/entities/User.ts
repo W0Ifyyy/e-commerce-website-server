@@ -22,6 +22,18 @@ export class User {
   @Column()
   password: string;
 
+  @Column({ nullable: true })
+  phone?: string;
+
+  @Column({ default: 'USD' })
+  preferredCurrency: string;
+
+  @Column({ default: 'US' })
+  country: string;
+
+  @Column({ default: true })
+  emailNotifications: boolean;
+
   @OneToMany(() => Order, (order) => order.user)
   orders: Order[];
 
