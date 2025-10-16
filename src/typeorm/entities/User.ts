@@ -31,7 +31,7 @@ export class User {
   @Column({ default: 'US' })
   country: string;
 
-  @Column({ default: true })
+  @Column({ default: false })
   emailNotifications: boolean;
 
   @OneToMany(() => Order, (order) => order.user)
