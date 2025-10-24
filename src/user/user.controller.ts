@@ -9,7 +9,6 @@ import {
   Put,
 } from '@nestjs/common';
 import { UserService } from './user.service';
-import { CreateUserDto } from 'src/user/dtos/CreateUserDto';
 import { UpdateUserDto } from 'src/user/dtos/UpdateUserDto';
 
 @Controller('user')
@@ -34,5 +33,16 @@ export class UserController {
   @Delete(':id')
   deleteUserById(@Param('id', ParseIntPipe) id: number) {
     return this.userService.deleteUserById(id);
+  }
+  @Put('/changePassword/:id')
+  changePassword(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() changePasswordDto: { oldPassword: string; newPassword: string },
+  ) {
+    return this.userService.changePassword(
+      id,
+      changePasswordDto.oldPassword,
+      changePasswordDto.newPassword,
+    );
   }
 }

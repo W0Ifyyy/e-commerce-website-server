@@ -2,7 +2,7 @@ import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/typeorm/entities/User';
 import { Repository } from 'typeorm';
-import { hashPassword } from 'utils/creatingPassword';
+import { comparePassword, hashPassword } from 'utils/creatingPassword';
 import { ICreateUser, IUpdateUser } from 'utils/Interfaces';
 
 @Injectable()
@@ -128,9 +128,41 @@ export class UserService {
       );
     try {
       await this.usersRepository.update(user, { refreshToken: null });
-    } catch (err: any) {
+    } catch (error: any) {
       throw new HttpException(
-        `An error occured while creating the user. Error: ${err.message}`,
+        `An error occured while creating the user. Error: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+  async changePassword(
+    userId: number,
+    oldPassword: string,
+    newPassword: string,
+  ) {
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+    try {
+      let isPasswordCorrect = await comparePassword(oldPassword, user.password);
+      if (!isPasswordCorrect) {
+        throw new HttpException(
+          'Old password is incorrect',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
+      const hashedPassword = await hashPassword(newPassword);
+      const result = await this.usersRepository.update(userId, {
+        password: hashedPassword,
+      });
+      if (result.affected === 0) {
+        throw new HttpException(
+          'User with this id does not exist!',
+          HttpStatus.NOT_FOUND,
+        );
+      }
+      return { msg: 'Password changed successfully!' };
+    } catch (error) {
+      throw new HttpException(
+        `An error occured while changing the password: ${error.message}`,
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
