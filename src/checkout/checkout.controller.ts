@@ -20,9 +20,18 @@ export class CheckoutController {
   @Public()
   @Post('finalize')
   async finalizeCheckout(
-    @Body() body: { orderId: number; products: ProductItemDto[] },
+    @Body()
+    body: {
+      orderId: number;
+      userId: number;
+      products: ProductItemDto[];
+    },
   ) {
-    return this.checkoutService.finalizeCheckout(body.products, body.orderId);
+    return this.checkoutService.finalizeCheckout(
+      body.products,
+      body.orderId,
+      body.userId,
+    );
   }
 
   @Post('/webhook')

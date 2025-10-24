@@ -2,14 +2,28 @@ import { Injectable, Redirect } from '@nestjs/common';
 import { stripe } from 'lib/stripe';
 import { ProductItemDto } from './dtos/ProductDto';
 import { OrdersService } from 'src/orders/orders.service';
+import { UserService } from 'src/user/user.service';
 
 @Injectable()
 export class CheckoutService {
-  constructor(private readonly ordersService: OrdersService) {}
-  async finalizeCheckout(products: ProductItemDto[], orderId: number) {
+  constructor(
+    private readonly ordersService: OrdersService,
+    private readonly userService: UserService,
+  ) {}
+
+  async finalizeCheckout(
+    products: ProductItemDto[],
+    orderId: number,
+    userId: number,
+  ) {
+    const user = await this.userService.getUserById(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
     const line_items = products.map((item) => ({
       price_data: {
-        currency: 'usd',
+        currency: user.preferredCurrency.toLowerCase(),
         product_data: {
           name: item.name,
         },
