@@ -1,4 +1,9 @@
-import { Injectable, Redirect } from '@nestjs/common';
+import {
+  Injectable,
+  Redirect,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { stripe } from 'lib/stripe';
 import { ProductItemDto } from './dtos/ProductDto';
 import { OrdersService } from 'src/orders/orders.service';
@@ -16,6 +21,17 @@ export class CheckoutService {
     orderId: number,
     userId: number,
   ) {
+    if (
+      !Array.isArray(products) ||
+      products.length === 0 ||
+      !orderId ||
+      !userId
+    ) {
+      throw new HttpException(
+        'Missing or invalid dependencies. Expect a non-empty products array and valid orderId and userId.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
     const user = await this.userService.getUserById(userId);
     if (!user) {
       throw new Error('User not found');
