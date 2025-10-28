@@ -1,9 +1,9 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { CategoryService } from 'src/category/category.service';
-import { Product } from 'src/typeorm/entities/Product';
+import { CategoryService } from '../category/category.service';
+import { Product } from '../typeorm/entities/Product';           
 import { Repository, In, Like } from 'typeorm';
-import { ICreateProduct, IUpdateProduct } from 'utils/Interfaces';
+import { ICreateProduct, IUpdateProduct } from '../../utils/Interfaces';  
 
 @Injectable()
 export class ProductsService {
@@ -35,7 +35,6 @@ export class ProductsService {
     return product;
   }
   async getProductsByIds(ids: number[]) {
-    console.log(ids);
     if (!Array.isArray(ids) || ids.length === 0) {
       throw new HttpException('Invalid product IDs', HttpStatus.BAD_REQUEST);
     }
