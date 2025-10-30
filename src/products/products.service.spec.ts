@@ -3,7 +3,7 @@ import { ProductsService } from './products.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Product } from '../typeorm/entities/Product';
 import { CategoryService } from '../category/category.service';  // Changed
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { HttpException, HttpStatus } from '@nestjs/common';
 
 
@@ -150,4 +150,58 @@ describe('ProductsService', () => {
       expect(mockProductRepository.find).not.toHaveBeenCalled();
     })
   })
+  describe("getProductsByIds", () => {
+  //Test 1 - Normal case - products and ids exist
+  it("should return an array of products with given ids", async () => {
+    const mockProducts = [{
+      id: 1,
+      name: "Laptop",
+      description: "Fancy laptop",
+      price: 999,
+      orderItems: [],
+    }, {
+       id: 2,
+       name: "TV",
+       description: "Fancy tv",
+       price: 1500,
+       orderItems: [],
+    }]
+    mockProductRepository.find.mockResolvedValue(mockProducts);
+
+    const result = await service.getProductsByIds([1, 2]);
+
+    expect(result).toEqual(mockProducts);
+    expect(mockProductRepository.find).toHaveBeenCalled();
+    expect(mockProductRepository.find).toHaveBeenCalledWith({
+      relations: ['orderItems', 'category'],
+      where: { id: In([1, 2]) },
+    })
+    expect(mockProductRepository.find).toHaveBeenCalledTimes(1);
+  })
+
+  //Test 2 - There is no id
+it("should throw an bad request error when ids is null", async () => {
+  await expect(service.getProductsByIds(null)).rejects.toThrow(
+    new HttpException('Invalid product IDs', HttpStatus.BAD_REQUEST) 
+  );
+  expect(mockProductRepository.find).not.toHaveBeenCalled();
+})
+
+//Test 3 - Empty array of ids
+it("should throw an bad request error when ids array is empty", async () => {
+  await expect(service.getProductsByIds([])).rejects.toThrow(
+    new HttpException('Invalid product IDs', HttpStatus.BAD_REQUEST) 
+  );
+  expect(mockProductRepository.find).not.toHaveBeenCalled();
+})
+
+//Test 4 - Products not found
+it("should throw error when products not found", async () => {
+  mockProductRepository.find.mockResolvedValue([]);
+  await expect(service.getProductsByIds([999, 888])).rejects.toThrow(
+    new HttpException("No products found for the given IDs", HttpStatus.NOT_FOUND) 
+  );
+  expect(mockProductRepository.find).toHaveBeenCalled();
+})
+})
 });
