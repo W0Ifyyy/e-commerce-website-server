@@ -60,13 +60,14 @@ export class ProductsService {
       relations: ['orderItems', 'category'],
     });
 
-    if (products.length === 0) return null;
     if (!products) {
       throw new HttpException(
         'No products found matching this name',
         HttpStatus.NOT_FOUND,
       );
     }
+
+    if (products.length === 0) return null;
 
     return products;
   }
