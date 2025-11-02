@@ -75,17 +75,17 @@ export class ProductsService {
     let ifExists = await this.productRepository.findOne({
       where: { name: params.name },
     });
+    if (ifExists)
+      throw new HttpException(
+        'This product with the same name already exists',
+        HttpStatus.CONFLICT,
+      );
     const categoryEntity = await this.categoryService.getCategoryById(
       params.category,
     );
     if (!categoryEntity) {
       throw new HttpException('Category not found', HttpStatus.NOT_FOUND);
     }
-    if (ifExists)
-      throw new HttpException(
-        'This product with the same name already exists',
-        HttpStatus.CONFLICT,
-      );
     let newProduct = this.productRepository.create({
       ...params,
       category: categoryEntity,

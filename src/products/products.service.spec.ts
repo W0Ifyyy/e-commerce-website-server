@@ -293,5 +293,157 @@ describe('ProductsService', () => {
       });
       expect(mockProductRepository.save).toHaveBeenCalledWith(mockProduct);
     });
+    // Test 2 - Error - Category not found
+    it("should throw error when category not found", async () => {
+      const createProductParams = {
+        name: "Laptop",
+        description: "Fancy laptop",
+        price: 999,
+        category: 1,
+      };
+      mockProductRepository.findOne.mockResolvedValue(null);
+      mockCategoryService.getCategoryById.mockResolvedValue(null);
+      await expect(service.createProduct(createProductParams)).rejects.toThrow(
+        new HttpException("Category not found", HttpStatus.NOT_FOUND)
+      );
+      expect(mockProductRepository.findOne).toHaveBeenCalledWith({ where: { name: createProductParams.name } });
+      expect(mockCategoryService.getCategoryById).toHaveBeenCalledWith(createProductParams.category);
+      expect(mockProductRepository.create).not.toHaveBeenCalled();
+      expect(mockProductRepository.save).not.toHaveBeenCalled();
+    });
+    // Test 3 - Error - Product with same name exists
+    it("should throw error when product with same name exists", async () => {
+      const createProductParams = {
+        name: "Laptop",
+        description: "Fancy laptop",
+        price: 999,
+        category: 1,
+      };
+      const existingProduct = {
+        id: 2,
+        name: "Laptop",
+        description: "Another laptop",
+        price: 899,
+        category: { id: 1, name: 'Electronics' },
+      };
+      mockProductRepository.findOne.mockResolvedValue(existingProduct);
+      await expect(service.createProduct(createProductParams)).rejects.toThrow(
+        new HttpException("This product with the same name already exists", HttpStatus.CONFLICT)
+      );
+      expect(mockProductRepository.findOne).toHaveBeenCalledWith({ where: { name: createProductParams.name } });
+      expect(mockCategoryService.getCategoryById).not.toHaveBeenCalled();
+      expect(mockProductRepository.create).not.toHaveBeenCalled();
+      expect(mockProductRepository.save).not.toHaveBeenCalled();
+    });
+    
+  });
+  describe("deleteProduct", () => {
+    // Test 1 - Normal case - product deleted
+    it("should delete the product with given id", async () => {
+      const mockProduct = {
+        id: 1,
+        name: "Laptop",
+        description: "Fancy laptop",
+        price: 999,
+        orderItems: [],
+      }
+      mockProductRepository.findOne.mockResolvedValue(mockProduct);
+      const result = await service.deleteProduct(mockProduct.id);
+      expect(result).toEqual({ msg: 'Product deleted succesfully!', statusCode: 200 });
+      expect(mockProductRepository.findOne).toHaveBeenCalledWith({ where: { id: mockProduct.id } });
+      expect(mockProductRepository.delete).toHaveBeenCalledWith({ id: mockProduct.id });
+    });
+    // Test 2 - Error - id is invalid - case 1
+    it("should throw error when id is invalid", async () => {
+      await expect(service.deleteProduct(0)).rejects.toThrow(
+        new HttpException("Invalid product ID", HttpStatus.BAD_REQUEST)
+      );
+      expect(mockProductRepository.findOne).not.toHaveBeenCalled();
+      expect(mockProductRepository.delete).not.toHaveBeenCalled();
+    });
+    // Test 3 - Error - id is invalid - case 2
+    it("should throw error when id is invalid", async () => {
+      await expect(service.deleteProduct(-1)).rejects.toThrow(
+        new HttpException("Invalid product ID", HttpStatus.BAD_REQUEST)
+      );
+      expect(mockProductRepository.findOne).not.toHaveBeenCalled();
+      expect(mockProductRepository.delete).not.toHaveBeenCalled();
+    });
+    // Test 4 - Error - product with given id does not exist
+    it("should throw error when product with given id does not exist", async () => {
+      mockProductRepository.findOne.mockResolvedValue(null);
+      await expect(service.deleteProduct(999)).rejects.toThrow(
+        new HttpException("Product with this id doesnt exist!", HttpStatus.NOT_FOUND)
+      );
+      expect(mockProductRepository.findOne).toHaveBeenCalledWith({ where: { id: 999 } });
+      expect(mockProductRepository.delete).not.toHaveBeenCalled();
+    });
+  })
+  describe("updateProduct", () => {
+    // Test 1 - Normal case - product updated
+    it("should update and return the product", async () => {
+      const mockProduct = {
+        id: 1,
+        name: "Laptop",
+        description: "Fancy laptop",
+        price: 999,
+        orderItems: [],
+      }
+      const updateParams = {
+        name: "Updated Laptop",
+        description: "Updated description",
+        price: 1099,
+        category: 2,
+      }
+      const mockCategory = { id: 2, name: 'Computers' };
+      mockProductRepository.findOne.mockResolvedValue(mockProduct);
+      mockCategoryService.getCategoryById.mockResolvedValue(mockCategory);
+      const result = await service.updateProduct(mockProduct.id, updateParams);
+      expect(result).toEqual({ msg: 'Product updated succesfully!', statusCode: 200 });
+      expect(mockProductRepository.findOne).toHaveBeenCalledWith({ where: { id: mockProduct.id } });
+      expect(mockCategoryService.getCategoryById).toHaveBeenCalledWith(updateParams.category);
+      expect(mockProductRepository.save).toHaveBeenCalledWith({
+        ...mockProduct,
+        ...updateParams,
+        category: mockCategory,
+      });
+    });
+    // Test 2 - Error - id is invalid
+    it("should throw error when id is invalid", async () => {
+      await expect(service.updateProduct(0, {})).rejects.toThrow(
+        new HttpException("Invalid product ID", HttpStatus.BAD_REQUEST)
+      );
+      expect(mockProductRepository.findOne).not.toHaveBeenCalled();
+      expect(mockCategoryService.getCategoryById).not.toHaveBeenCalled();
+      expect(mockProductRepository.save).not.toHaveBeenCalled();
+    });
+    // Test 3 - Error - product with given id does not exist
+    it("should throw error when product with given id does not exist", async () => {
+      mockProductRepository.findOne.mockResolvedValue(null);
+      await expect(service.updateProduct(999, {})).rejects.toThrow(
+        new HttpException("Product with this id doesnt exist!", HttpStatus.NOT_FOUND)
+      );
+      expect(mockProductRepository.findOne).toHaveBeenCalledWith({ where: { id: 999 } });
+      expect(mockCategoryService.getCategoryById).not.toHaveBeenCalled();
+      expect(mockProductRepository.save).not.toHaveBeenCalled();
+    });
+    // Test 4 - Error - category not found
+    it("should throw error when category not found", async () => {
+      const mockProduct = {
+        id: 1,
+        name: "Laptop",
+        description: "Fancy laptop",
+        price: 999,
+        orderItems: [],
+      };
+      mockProductRepository.findOne.mockResolvedValue(mockProduct);
+      mockCategoryService.getCategoryById.mockResolvedValue(null);
+      await expect(service.updateProduct(mockProduct.id, { category: 2 })).rejects.toThrow(
+        new HttpException("Category not found", HttpStatus.NOT_FOUND)
+      );
+      expect(mockProductRepository.findOne).toHaveBeenCalledWith({ where: { id: mockProduct.id } });
+      expect(mockCategoryService.getCategoryById).toHaveBeenCalledWith(2);
+      expect(mockProductRepository.save).not.toHaveBeenCalled();
+    });
   });
 });
