@@ -21,6 +21,7 @@ A comprehensive backend REST API for e-commerce applications, built with NestJS,
 - Secure password change functionality
 - User preferences (currency, country, email notifications)
 - Refresh token management per user
+- Complete service testing,
 
 ### Product Management
 
