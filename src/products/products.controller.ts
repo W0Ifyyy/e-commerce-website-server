@@ -25,7 +25,7 @@ export class ProductsController {
     return this.productService.getProducts();
   }
   @Public()
-  @Get('search') // route is now /products/search?name=xxx
+  @Get('search') 
   getProductsBySearch(@Query('name') name: string) {
     
     return this.productService.getProductsByNameSearch(name);
