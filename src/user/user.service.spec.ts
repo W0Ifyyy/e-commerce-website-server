@@ -46,7 +46,7 @@ describe('UserService', () => {
   });
 
   describe('getAllUsers', () => {
-    it('returns all users with orders', async () => {
+    it('should return all users with orders', async () => {
       const mockUsers = [{ id: 1, name: 'Test', orders: [] }];
       mockRepository.find.mockResolvedValue(mockUsers);
 
@@ -58,7 +58,7 @@ describe('UserService', () => {
   });
 
   describe('getUserById', () => {
-    it('returns user and nulls password & stringifies createdAt', async () => {
+    it('should return user and nulls password & stringifies createdAt', async () => {
       const mockUser = {
         id: 1,
         name: 'Test',
@@ -80,12 +80,12 @@ describe('UserService', () => {
       });
     });
 
-    it('throws BAD_REQUEST for invalid id', async () => {
+    it('should throw BAD_REQUEST for invalid id', async () => {
       await expect(service.getUserById(0)).rejects.toThrow(HttpException);
       await expect(service.getUserById(-1)).rejects.toThrow(HttpException);
     });
 
-    it('throws NOT_FOUND when user does not exist', async () => {
+    it('should throw NOT_FOUND when user does not exist', async () => {
       mockRepository.findOne.mockResolvedValue(null);
       await expect(service.getUserById(999)).rejects.toThrow(
         new HttpException('User with ID 999 not found', HttpStatus.NOT_FOUND),
@@ -94,7 +94,7 @@ describe('UserService', () => {
   });
 
   describe('createUser', () => {
-    it('creates a new user', async () => {
+    it('should create a new user', async () => {
       const mockParams = {
         email: 'test@test.com',
         password: 'password123',
@@ -118,7 +118,7 @@ describe('UserService', () => {
       expect(mockRepository.save).toHaveBeenCalled();
     });
 
-    it('throws CONFLICT when user already exists', async () => {
+    it('should throw CONFLICT when user already exists', async () => {
       const mockParams = {
         email: 'test@test.com',
         password: 'password123',
@@ -134,7 +134,7 @@ describe('UserService', () => {
       );
     });
 
-    it('wraps repository save error as INTERNAL_SERVER_ERROR', async () => {
+    it('should wrap repository save error as INTERNAL_SERVER_ERROR', async () => {
       const mockParams = {
         email: 'new@test.com',
         password: 'password123',
@@ -149,7 +149,7 @@ describe('UserService', () => {
       );
     });
 
-    it('hashPassword failure propagates as INTERNAL_SERVER_ERROR', async () => {
+    it('should propagate hashPassword failure as INTERNAL_SERVER_ERROR', async () => {
       const mockParams = {
         email: 'fresh@test.com',
         password: 'password123',
@@ -168,7 +168,7 @@ describe('UserService', () => {
   });
 
   describe('updateUser', () => {
-    it('updates a user', async () => {
+    it('should update a user', async () => {
       mockRepository.update.mockResolvedValue({ affected: 1 });
 
       const result = await service.updateUser(1, { name: 'Updated' });
@@ -177,13 +177,13 @@ describe('UserService', () => {
       expect(mockRepository.update).toHaveBeenCalledWith(1, { name: 'Updated' });
     });
 
-    it('throws BAD_REQUEST for invalid id', async () => {
+    it('should throw BAD_REQUEST for invalid id', async () => {
       await expect(service.updateUser(0, { name: 'Test' })).rejects.toThrow(
         HttpException,
       );
     });
 
-    it('throws NOT_FOUND when user does not exist', async () => {
+    it('should throw NOT_FOUND when user does not exist', async () => {
       mockRepository.update.mockResolvedValue({ affected: 0 });
 
       await expect(service.updateUser(999, { name: 'Test' })).rejects.toThrow(
@@ -196,7 +196,7 @@ describe('UserService', () => {
   });
 
   describe('deleteUserById', () => {
-    it('deletes a user', async () => {
+    it('should delete a user', async () => {
       mockRepository.delete.mockResolvedValue({ affected: 1 });
 
       const result = await service.deleteUserById(1);
@@ -205,11 +205,11 @@ describe('UserService', () => {
       expect(mockRepository.delete).toHaveBeenCalledWith({ id: 1 });
     });
 
-    it('throws BAD_REQUEST for invalid id', async () => {
+    it('should throw BAD_REQUEST for invalid id', async () => {
       await expect(service.deleteUserById(0)).rejects.toThrow(HttpException);
     });
 
-    it('throws NOT_FOUND when user does not exist', async () => {
+    it('should throw NOT_FOUND when user does not exist', async () => {
       mockRepository.delete.mockResolvedValue({ affected: 0 });
 
       await expect(service.deleteUserById(999)).rejects.toThrow(
@@ -217,7 +217,7 @@ describe('UserService', () => {
       );
     });
 
-    it('wraps repository errors as INTERNAL_SERVER_ERROR', async () => {
+    it('should wrap repository errors as INTERNAL_SERVER_ERROR', async () => {
       mockRepository.delete.mockRejectedValue(new Error('db down'));
       await expect(service.deleteUserById(1)).rejects.toThrow(
         /An error occured while deleting the user/,
@@ -226,7 +226,7 @@ describe('UserService', () => {
   });
 
   describe('findOne', () => {
-    it('finds user by username', async () => {
+    it('should find user by username', async () => {
       const mockUser = { id: 1, name: 'testuser' };
       mockRepository.findOne.mockResolvedValue(mockUser);
 
@@ -238,7 +238,7 @@ describe('UserService', () => {
       });
     });
 
-    it('wraps repository error as INTERNAL_SERVER_ERROR', async () => {
+    it('should wrap repository error as INTERNAL_SERVER_ERROR', async () => {
       mockRepository.findOne.mockRejectedValue(new Error('db fail'));
       await expect(service.findOne('broken')).rejects.toThrow(
         /An error occured while finding user by username, error: db fail/,
@@ -247,12 +247,12 @@ describe('UserService', () => {
   });
 
   describe('refresh token helpers', () => {
-    it('getRefreshToken returns null when user not found', async () => {
+    it('should getRefreshToken returns null when user not found', async () => {
       mockRepository.findOne.mockResolvedValue(null);
       await expect(service.getRefreshToken(999)).resolves.toBeNull();
     });
 
-    it('getRefreshToken returns name and token', async () => {
+    it('should getRefreshToken returns name and token', async () => {
       mockRepository.findOne.mockResolvedValue({
         id: 1,
         name: 'User',
@@ -264,7 +264,7 @@ describe('UserService', () => {
       });
     });
 
-    it('updateRefreshToken delegates to repository.update', async () => {
+    it('should updateRefreshToken delegates to repository.update', async () => {
       mockRepository.update.mockResolvedValue({ affected: 1 });
       await service.updateRefreshToken(1, 'newToken');
       expect(mockRepository.update).toHaveBeenCalledWith(1, {
@@ -272,14 +272,14 @@ describe('UserService', () => {
       });
     });
 
-    it('removeRefreshToken throws NOT_FOUND when user missing', async () => {
+    it('should throw NOT_FOUND when removeRefreshToken user missing', async () => {
       mockRepository.findOne.mockResolvedValue(null);
       await expect(service.removeRefreshToken(2)).rejects.toThrow(
         /User with id of: 2 does not exist!/,
       );
     });
 
-    it('removeRefreshToken sets refreshToken null', async () => {
+    it('should removeRefreshToken sets refreshToken null', async () => {
       const user = { id: 3, refreshToken: 'abc' };
       mockRepository.findOne.mockResolvedValue(user);
       mockRepository.update.mockResolvedValue({ affected: 1 });
@@ -289,7 +289,7 @@ describe('UserService', () => {
       });
     });
 
-    it('removeRefreshToken wraps update error as INTERNAL_SERVER_ERROR', async () => {
+    it('should wrap update error as INTERNAL_SERVER_ERROR when removeRefreshToken fails', async () => {
       const user = { id: 4, refreshToken: 'def' };
       mockRepository.findOne.mockResolvedValue(user);
       mockRepository.update.mockRejectedValue(new Error('update fail'));
@@ -300,7 +300,7 @@ describe('UserService', () => {
   });
 
   describe('changePassword', () => {
-    it('changes password successfully', async () => {
+    it('should change password successfully', async () => {
       const mockUser = { id: 1, password: 'oldHashedPassword' };
       mockRepository.findOne.mockResolvedValue(mockUser);
       mockRepository.update.mockResolvedValue({ affected: 1 });
@@ -335,14 +335,14 @@ describe('UserService', () => {
       });
     });
 
-    it('wraps missing user error as INTERNAL_SERVER_ERROR', async () => {
+    it('should wrap missing user error as INTERNAL_SERVER_ERROR', async () => {
       mockRepository.findOne.mockResolvedValue(null);
       await expect(service.changePassword(9, 'old', 'new')).rejects.toThrow(
         /An error occured while changing the password: Cannot read properties of null/,
       );
     });
 
-    it('wraps UNAUTHORIZED error as INTERNAL_SERVER_ERROR message', async () => {
+    it('should wrap UNAUTHORIZED error as INTERNAL_SERVER_ERROR message', async () => {
       const mockUser = { id: 2, password: 'hashedPassword' };
       mockRepository.findOne.mockResolvedValue(mockUser);
       (creatingPassword.comparePassword as jest.Mock).mockResolvedValue(false);
@@ -357,7 +357,7 @@ describe('UserService', () => {
       }
     });
 
-    it('wraps NOT_FOUND (affected=0) error as INTERNAL_SERVER_ERROR', async () => {
+    it('should wrap NOT_FOUND (affected=0) error as INTERNAL_SERVER_ERROR', async () => {
       const mockUser = { id: 3, password: 'hashedPassword' };
       mockRepository.findOne.mockResolvedValue(mockUser);
       (creatingPassword.comparePassword as jest.Mock).mockResolvedValue(true);
@@ -371,7 +371,7 @@ describe('UserService', () => {
       );
     });
 
-    it('propagates hashPassword failure wrapped as INTERNAL_SERVER_ERROR', async () => {
+    it('should propagate hashPassword failure wrapped as INTERNAL_SERVER_ERROR', async () => {
       const mockUser = { id: 5, password: 'oldHash' };
       mockRepository.findOne.mockResolvedValue(mockUser);
       (creatingPassword.comparePassword as jest.Mock).mockResolvedValue(true);
