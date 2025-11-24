@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UserController } from './user.controller';
 import { UserService } from './user.service';
 import { UpdateUserDto } from './dtos/UpdateUserDto';
+import { HttpException, HttpStatus } from '@nestjs/common';
 
 describe('UserController', () => {
   let controller: UserController;
@@ -60,6 +61,25 @@ describe('UserController', () => {
       expect(result).toEqual([]);
       expect(mockUserService.getAllUsers).toHaveBeenCalledTimes(1);
     });
+
+    it('should propagate service errors', async () => {
+      const error = new HttpException(
+        'Database error',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+      mockUserService.getAllUsers.mockRejectedValue(error);
+
+      await expect(controller.getUsers()).rejects.toThrow(HttpException);
+      await expect(controller.getUsers()).rejects.toThrow('Database error');
+    });
+
+    it('should handle unexpected service failures', async () => {
+      mockUserService.getAllUsers.mockRejectedValue(
+        new Error('Unexpected error'),
+      );
+
+      await expect(controller.getUsers()).rejects.toThrow('Unexpected error');
+    });
   });
 
   describe('getUserById', () => {
@@ -92,6 +112,43 @@ describe('UserController', () => {
 
       expect(mockUserService.getUserById).toHaveBeenCalledWith(userId);
     });
+
+    it('should propagate NOT_FOUND error when user does not exist', async () => {
+      const error = new HttpException(
+        'User with ID 999 not found',
+        HttpStatus.NOT_FOUND,
+      );
+      mockUserService.getUserById.mockRejectedValue(error);
+
+      await expect(controller.getUserById(999)).rejects.toThrow(HttpException);
+      await expect(controller.getUserById(999)).rejects.toThrow(
+        'User with ID 999 not found',
+      );
+      expect(mockUserService.getUserById).toHaveBeenCalledWith(999);
+    });
+
+    it('should propagate BAD_REQUEST error for invalid id', async () => {
+      const error = new HttpException(
+        'Invalid user ID',
+        HttpStatus.BAD_REQUEST,
+      );
+      mockUserService.getUserById.mockRejectedValue(error);
+
+      await expect(controller.getUserById(0)).rejects.toThrow(HttpException);
+      await expect(controller.getUserById(0)).rejects.toThrow(
+        'Invalid user ID',
+      );
+    });
+
+    it('should handle service throwing generic errors', async () => {
+      mockUserService.getUserById.mockRejectedValue(
+        new Error('Database connection failed'),
+      );
+
+      await expect(controller.getUserById(1)).rejects.toThrow(
+        'Database connection failed',
+      );
+    });
   });
 
   describe('updateUser', () => {
@@ -107,7 +164,10 @@ describe('UserController', () => {
       const result = await controller.updateUser(userId, updateDto);
 
       expect(result).toEqual(mockResponse);
-      expect(mockUserService.updateUser).toHaveBeenCalledWith(userId, updateDto);
+      expect(mockUserService.updateUser).toHaveBeenCalledWith(
+        userId,
+        updateDto,
+      );
       expect(mockUserService.updateUser).toHaveBeenCalledTimes(1);
     });
 
@@ -120,7 +180,67 @@ describe('UserController', () => {
 
       await controller.updateUser(userId, updateDto);
 
-      expect(mockUserService.updateUser).toHaveBeenCalledWith(userId, updateDto);
+      expect(mockUserService.updateUser).toHaveBeenCalledWith(
+        userId,
+        updateDto,
+      );
+    });
+
+    it('should handle email-only updates', async () => {
+      const userId = 3;
+      const updateDto: UpdateUserDto = { email: 'newemail@test.com' };
+      mockUserService.updateUser.mockResolvedValue({
+        msg: 'User updated successfully!',
+      });
+
+      await controller.updateUser(userId, updateDto);
+
+      expect(mockUserService.updateUser).toHaveBeenCalledWith(
+        userId,
+        updateDto,
+      );
+    });
+
+    it('should propagate NOT_FOUND error when user does not exist', async () => {
+      const error = new HttpException(
+        'User with this id does not exist!',
+        HttpStatus.NOT_FOUND,
+      );
+      mockUserService.updateUser.mockRejectedValue(error);
+
+      await expect(
+        controller.updateUser(999, { name: 'Test' }),
+      ).rejects.toThrow(HttpException);
+      await expect(
+        controller.updateUser(999, { name: 'Test' }),
+      ).rejects.toThrow('User with this id does not exist!');
+    });
+
+    it('should propagate INTERNAL_SERVER_ERROR on database failure', async () => {
+      const error = new HttpException(
+        'An error occured while updating the user',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+      mockUserService.updateUser.mockRejectedValue(error);
+
+      await expect(
+        controller.updateUser(1, { name: 'Test' }),
+      ).rejects.toThrow(HttpException);
+    });
+
+    it('should handle empty update DTO', async () => {
+      const userId = 1;
+      const updateDto: UpdateUserDto = {};
+      mockUserService.updateUser.mockResolvedValue({
+        msg: 'User updated successfully!',
+      });
+
+      await controller.updateUser(userId, updateDto);
+
+      expect(mockUserService.updateUser).toHaveBeenCalledWith(
+        userId,
+        updateDto,
+      );
     });
   });
 
@@ -147,6 +267,44 @@ describe('UserController', () => {
 
       expect(mockUserService.deleteUserById).toHaveBeenCalledWith(userId);
     });
+
+    it('should propagate NOT_FOUND error when user does not exist', async () => {
+      const error = new HttpException(
+        "The user you're trying to delete does not exist!",
+        HttpStatus.NOT_FOUND,
+      );
+      mockUserService.deleteUserById.mockRejectedValue(error);
+
+      await expect(controller.deleteUserById(999)).rejects.toThrow(
+        HttpException,
+      );
+      await expect(controller.deleteUserById(999)).rejects.toThrow(
+        "The user you're trying to delete does not exist!",
+      );
+    });
+
+    it('should propagate INTERNAL_SERVER_ERROR on database failure', async () => {
+      const error = new HttpException(
+        'An error occured while deleting the user',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+      mockUserService.deleteUserById.mockRejectedValue(error);
+
+      await expect(controller.deleteUserById(1)).rejects.toThrow(HttpException);
+      await expect(controller.deleteUserById(1)).rejects.toThrow(
+        'An error occured while deleting the user',
+      );
+    });
+
+    it('should handle deletion of user with existing orders', async () => {
+      const error = new HttpException(
+        'Cannot delete user with existing orders',
+        HttpStatus.CONFLICT,
+      );
+      mockUserService.deleteUserById.mockRejectedValue(error);
+
+      await expect(controller.deleteUserById(1)).rejects.toThrow(HttpException);
+    });
   });
 
   describe('changePassword', () => {
@@ -159,7 +317,10 @@ describe('UserController', () => {
       const mockResponse = { msg: 'Password changed successfully!' };
       mockUserService.changePassword.mockResolvedValue(mockResponse);
 
-      const result = await controller.changePassword(userId, changePasswordDto);
+      const result = await controller.changePassword(
+        userId,
+        changePasswordDto,
+      );
 
       expect(result).toEqual(mockResponse);
       expect(mockUserService.changePassword).toHaveBeenCalledWith(
@@ -188,6 +349,94 @@ describe('UserController', () => {
         oldPassword,
         newPassword,
       );
+    });
+
+    it('should propagate error for incorrect old password', async () => {
+      const userId = 1;
+      const changePasswordDto = {
+        oldPassword: 'wrongPassword',
+        newPassword: 'newPass123',
+      };
+      const error = new HttpException(
+        'An error occured while changing the password: Old password is incorrect',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+      mockUserService.changePassword.mockRejectedValue(error);
+
+      await expect(
+        controller.changePassword(userId, changePasswordDto),
+      ).rejects.toThrow(HttpException);
+      await expect(
+        controller.changePassword(userId, changePasswordDto),
+      ).rejects.toThrow('Old password is incorrect');
+    });
+
+    it('should propagate error when user does not exist', async () => {
+      const error = new HttpException(
+        'An error occured while changing the password: User with this id does not exist!',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+      mockUserService.changePassword.mockRejectedValue(error);
+
+      await expect(
+        controller.changePassword(999, {
+          oldPassword: 'old',
+          newPassword: 'new',
+        }),
+      ).rejects.toThrow(HttpException);
+      await expect(
+        controller.changePassword(999, {
+          oldPassword: 'old',
+          newPassword: 'new',
+        }),
+      ).rejects.toThrow('User with this id does not exist!');
+    });
+
+    it('should propagate error when new password hashing fails', async () => {
+      const error = new HttpException(
+        'An error occured while changing the password: Failed to hash new password',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+      mockUserService.changePassword.mockRejectedValue(error);
+
+      await expect(
+        controller.changePassword(1, {
+          oldPassword: 'oldPass',
+          newPassword: 'newPass',
+        }),
+      ).rejects.toThrow(HttpException);
+    });
+
+    it('should handle same old and new password scenario', async () => {
+      const userId = 1;
+      const password = 'samePassword123';
+      const error = new HttpException(
+        'New password must be different from old password',
+        HttpStatus.BAD_REQUEST,
+      );
+      mockUserService.changePassword.mockRejectedValue(error);
+
+      await expect(
+        controller.changePassword(userId, {
+          oldPassword: password,
+          newPassword: password,
+        }),
+      ).rejects.toThrow(HttpException);
+    });
+
+    it('should handle database update failure', async () => {
+      const error = new HttpException(
+        'Failed to update password in database',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+      mockUserService.changePassword.mockRejectedValue(error);
+
+      await expect(
+        controller.changePassword(1, {
+          oldPassword: 'old',
+          newPassword: 'new',
+        }),
+      ).rejects.toThrow('Failed to update password in database');
     });
   });
 });
