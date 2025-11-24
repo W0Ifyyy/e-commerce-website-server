@@ -4,7 +4,7 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
-import { stripe } from 'lib/stripe';
+import { stripe } from '../../lib/stripe';
 import { ProductItemDto } from './dtos/ProductDto';
 import { OrdersService } from 'src/orders/orders.service';
 import { UserService } from 'src/user/user.service';
