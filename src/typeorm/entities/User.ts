@@ -45,4 +45,16 @@ export class User {
 
   @Column({ nullable: true })
   refreshToken: string;
+
+  @Column()
+  forgetPasswordToken: string;
+  
+  @Column({ type: 'timestamp', nullable: true })
+  forgetPasswordTokenExpiry: Date;
+
+  @Column()
+  verifyToken: string;
+
+  @Column({ type: 'timestamp', nullable: true })
+  verifyTokenExpiry: Date;
 }

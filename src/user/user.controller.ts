@@ -45,4 +45,8 @@ export class UserController {
       changePasswordDto.newPassword,
     );
   }
+  // @Get("/verifyEmail/?email=:email&emailType=:emailType")
+  // verifyEmail(@Param('email') email: string, @Param('emailType') emailType: string) {
+  //   return this.userService.verifyEmail(email, emailType);
+  // }
 }

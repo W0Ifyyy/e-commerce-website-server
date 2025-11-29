@@ -3,7 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/typeorm/entities/User';
 import { Repository } from 'typeorm';
 import { comparePassword, hashPassword } from 'utils/creatingPassword';
+import { hashToken } from 'utils/hashingTokens';
 import { ICreateUser, IUpdateUser } from 'utils/Interfaces';
+import nodemailer from 'nodemailer';
 
 @Injectable()
 export class UserService {
@@ -167,4 +169,27 @@ export class UserService {
       );
     }
   }
+  // async verifyEmail(email: string,  emailType: string) {
+  //   const user = await this.usersRepository.findOne({ where: { email } });
+  //     try {
+  //       const hashedToken = await hashToken(user.id.toString());
+  //       if (emailType === 'VERIFY') {
+  //         await this.usersRepository.update(user.id, {
+  //         verifyToken: hashedToken,
+  //         verifyTokenExpiry: new Date(Date.now() + 3600000), // 1 hour from now
+  //       });
+  //       } else if(emailType === "RESET"){
+  //         await this.usersRepository.update(user.id, {
+  //         forgetPasswordToken: hashedToken,
+  //         forgetPasswordTokenExpiry: new Date(Date.now() + 3600000), // 1 hour from now
+  //       });
+  //       }
+        
+  //       const transporter = nodemailer.createTransport({})
+
+  //     } catch (error) {
+  //       throw new HttpException(`An error occured while verifying email: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
+  //     }
+  //   }
 }
+
