@@ -6,6 +6,7 @@ import { comparePassword, hashPassword } from 'utils/creatingPassword';
 import { hashToken } from 'utils/hashingTokens';
 import { ICreateUser, IUpdateUser } from 'utils/Interfaces';
 import nodemailer from 'nodemailer';
+import { from } from 'rxjs';
 
 @Injectable()
 export class UserService {
@@ -169,27 +170,44 @@ export class UserService {
       );
     }
   }
-  // async verifyEmail(email: string,  emailType: string) {
-  //   const user = await this.usersRepository.findOne({ where: { email } });
-  //     try {
-  //       const hashedToken = await hashToken(user.id.toString());
-  //       if (emailType === 'VERIFY') {
-  //         await this.usersRepository.update(user.id, {
-  //         verifyToken: hashedToken,
-  //         verifyTokenExpiry: new Date(Date.now() + 3600000), // 1 hour from now
-  //       });
-  //       } else if(emailType === "RESET"){
-  //         await this.usersRepository.update(user.id, {
-  //         forgetPasswordToken: hashedToken,
-  //         forgetPasswordTokenExpiry: new Date(Date.now() + 3600000), // 1 hour from now
-  //       });
-  //       }
-        
-  //       const transporter = nodemailer.createTransport({})
+  async emailActions(email: string,  emailType: string) {
+    const user = await this.usersRepository.findOne({ where: { email } });
+      try {
+        const hashedToken = await hashToken(user.id.toString());
+        if (emailType === 'VERIFY') {
+          await this.usersRepository.update(user.id, {
+          verifyToken: hashedToken,
+          verifyTokenExpiry: new Date(Date.now() + 3600000), // 1 hour from now
+        });
+        } else if(emailType === "RESET"){
+          await this.usersRepository.update(user.id, {
+          forgetPasswordToken: hashedToken,
+          forgetPasswordTokenExpiry: new Date(Date.now() + 3600000), // 1 hour from now
+        });
+        }
+      const transport = nodemailer.createTransport({
+        host: "sandbox.smtp.mailtrap.io",
+        port: 2525,
+        auth: {
+          user: process.env.NODEMAILER_USER,
+          pass: process.env.NODEMAILER_PASS
+        }
+      });
 
-  //     } catch (error) {
-  //       throw new HttpException(`An error occured while verifying email: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
-  //     }
-  //   }
+      const mailOptions = {
+          from: "test@gmail.com",
+          to: email,
+          subject: emailType === "VERIFY" ? "Verify your email" : "Reset your password",
+          html: `<p>Click <a href="${process.env.NEXT_PUBLIC_BASE_UR}/verifyemail?token=${hashedToken}">here</a> to ${emailType === "VERIFY" ? "verify your email" : "reset your password"}</p>`
+      };
+      const mailResponse = await transport.sendMail(mailOptions);
+      return mailResponse;
+      } catch (error) {
+        throw new HttpException(`An error occured while verifying email: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+    }
+    async verifyEmail(token:string){
+      
+    }
 }
 

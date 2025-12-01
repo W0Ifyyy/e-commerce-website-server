@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { UpdateUserDto } from 'src/user/dtos/UpdateUserDto';
@@ -45,8 +46,12 @@ export class UserController {
       changePasswordDto.newPassword,
     );
   }
-  // @Get("/verifyEmail/?email=:email&emailType=:emailType")
-  // verifyEmail(@Param('email') email: string, @Param('emailType') emailType: string) {
-  //   return this.userService.verifyEmail(email, emailType);
-  // }
+  @Get('/verifyEmail')
+  emailActions(@Query('email') email: string, @Query('emailType') emailType: string) {
+    return this.userService.emailActions(email, emailType);
+  }
+  @Get('/verifyEmail/confirm')
+  verifyEmail(@Query('token') token: string) {
+    return this.userService.verifyEmail(token);
+  }
 }

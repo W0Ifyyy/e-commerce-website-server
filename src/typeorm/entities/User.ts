@@ -46,13 +46,16 @@ export class User {
   @Column({ nullable: true })
   refreshToken: string;
 
-  @Column()
+  @Column({default: false})
+  isEmailVerified: boolean;
+
+  @Column({ nullable: true })
   forgetPasswordToken: string;
   
   @Column({ type: 'timestamp', nullable: true })
   forgetPasswordTokenExpiry: Date;
 
-  @Column()
+  @Column({ nullable: true })
   verifyToken: string;
 
   @Column({ type: 'timestamp', nullable: true })
