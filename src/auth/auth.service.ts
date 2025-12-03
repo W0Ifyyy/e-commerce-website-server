@@ -39,28 +39,38 @@ export class AuthService {
 
   async refreshToken(refreshToken: string) {
     try {
-      const payload = this.jwtService.decode(refreshToken) as { sub: number };
-      if (!payload) throw new UnauthorizedException('Invalid refresh token');
+      if (!refreshToken) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      //Jwt verification
+      const payload = this.jwtService.verify<{ sub: number; username?: string }>(
+        refreshToken,
+      );
 
       const userId = payload.sub;
+      if (!userId || userId <= 0) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
 
+      //checking hashed token from db
       const storedToken = await this.usersService.getRefreshToken(userId);
-      if (!storedToken)
+      if (!storedToken || !storedToken.refreshToken) {
         throw new UnauthorizedException('Refresh token not found');
+      }
 
       const isValid = await compareTokens(
         refreshToken,
         storedToken.refreshToken,
       );
-      if (!isValid) throw new UnauthorizedException('Invalid refresh token');
+      if (!isValid) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
 
-      const verifyToken = this.jwtService.verify(refreshToken);
-      if (!verifyToken)
-        throw new UnauthorizedException('Token verification failed');
-
+      // token rotation
       const newPayload = { username: storedToken.name, sub: userId };
       const newAccessToken = this.jwtService.sign(newPayload, {
-        expiresIn: '60s',
+        expiresIn: '600s',
       });
       const newRefreshToken = this.jwtService.sign(newPayload, {
         expiresIn: '7d',
@@ -71,7 +81,7 @@ export class AuthService {
 
       return { access_token: newAccessToken, refresh_token: newRefreshToken };
     } catch (error) {
-      console.log(error);
+      console.log('Refresh token error:', error?.message);
       throw new UnauthorizedException('Invalid refresh token');
     }
   }

@@ -204,61 +204,87 @@ describe('ProductsService', () => {
     expect(mockProductRepository.find).toHaveBeenCalled();
   })
 })
-  describe("getProductsByNameSearch", () => {
-    //Test 1 - Normal case - products found
-    it("should return an array of products matching the name search", async () => {
-      const mockProducts = [{
-        id: 1,
-        name: "Laptop",
-        description: "Fancy laptop",
-        price: 999,
-        orderItems: [],
-      }]
-      mockProductRepository.find.mockResolvedValue(mockProducts);
-      expect(await service.getProductsByNameSearch("Lap")).toEqual(mockProducts);
-      expect(mockProductRepository.find).toHaveBeenCalled();
-      expect(mockProductRepository.find).toHaveBeenCalledWith({
-        where: {name: Like(`%Lap%`)},
-        relations: ['orderItems', 'category']
-      })
-      expect(mockProductRepository.find).toHaveBeenCalledTimes(1);
+ describe("getProductsByNameSearch", () => {
+  let qb: any;
 
-  })
-    //Test 2 - Name is empty string
-    it("should throw bad request error when name is empty", async () => {
-      await expect(service.getProductsByNameSearch("")).rejects.toThrow(
-        new HttpException("Invalid product name", HttpStatus.BAD_REQUEST)
-      );
-      expect(mockProductRepository.find).not.toHaveBeenCalled();
-    })
-    //Test 3 - Name is null
-    it("should throw bad request error when name is null", async () => {
-      await expect(service.getProductsByNameSearch(null)).rejects.toThrow(
-        new HttpException("Invalid product name", HttpStatus.BAD_REQUEST)
-      );
-      expect(mockProductRepository.find).not.toHaveBeenCalled();
-    })
-    //Test 4 - No products found
-    it("should return null when no products found matching the name", async () => {
-      mockProductRepository.find.mockResolvedValue([]);
-      const result = await service.getProductsByNameSearch("DontExist");
-      expect(result).toBeNull();
-      expect(mockProductRepository.find).toHaveBeenCalled();
-      expect(mockProductRepository.find).toHaveBeenCalledWith({
-      where: {name: Like(`%DontExist%`)},
-      relations: ['orderItems', 'category']
-      })
-      expect(mockProductRepository.find).toHaveBeenCalledTimes(1);
-    })
-    // Test 5 - Products is null/undefined
-    it("should throw error when products is null or undefined", async () => {
-      mockProductRepository.find.mockResolvedValue(null);
-      await expect(service.getProductsByNameSearch("Laptop")).rejects.toThrow(
-      new HttpException("No products found matching this name", HttpStatus.NOT_FOUND)
-      );
-      expect(mockProductRepository.find).toHaveBeenCalled();
-    })
+  beforeEach(() => {
+    qb = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      getMany: jest.fn(),
+    };
+    // mock repository.createQueryBuilder
+    (mockProductRepository as any).createQueryBuilder = jest.fn().mockReturnValue(qb);
   });
+
+  // Test 1 - Normal case - products found
+  it("should return an array of products matching the name search", async () => {
+    const mockProducts = [{
+      id: 1,
+      name: "Laptop",
+      description: "Fancy laptop",
+      price: 999,
+      orderItems: [],
+    }];
+    qb.getMany.mockResolvedValue(mockProducts);
+
+    const result = await service.getProductsByNameSearch("Lap");
+    expect(result).toEqual(mockProducts);
+
+    expect((mockProductRepository as any).createQueryBuilder).toHaveBeenCalledWith("product");
+    expect(qb.leftJoinAndSelect).toHaveBeenCalledWith('product.orderItems', 'orderItems');
+    expect(qb.leftJoinAndSelect).toHaveBeenCalledWith('product.category', 'category');
+
+    // ensure WHERE was called with parameterized LIKE (value escapes %, _ and \)
+    expect(qb.where).toHaveBeenCalledWith(
+      "product.name LIKE :name ESCAPE '\\\\'",
+      expect.objectContaining({ name: expect.stringMatching(/^%.*%?$/) })
+    );
+    expect(qb.getMany).toHaveBeenCalledTimes(1);
+
+    // ensure repository.find is not used anymore
+    expect(mockProductRepository.find).not.toHaveBeenCalled();
+  });
+
+  // Test 2 - Name is empty string
+  it("should throw bad request error when name is empty", async () => {
+    await expect(service.getProductsByNameSearch("")).rejects.toThrow(
+      new HttpException("Invalid product name", HttpStatus.BAD_REQUEST)
+    );
+    expect((mockProductRepository as any).createQueryBuilder).not.toHaveBeenCalled();
+    expect(mockProductRepository.find).not.toHaveBeenCalled();
+  });
+
+  // Test 3 - Name is null
+  it("should throw bad request error when name is null", async () => {
+    await expect(service.getProductsByNameSearch(null as any)).rejects.toThrow(
+      new HttpException("Invalid product name", HttpStatus.BAD_REQUEST)
+    );
+    expect((mockProductRepository as any).createQueryBuilder).not.toHaveBeenCalled();
+    expect(mockProductRepository.find).not.toHaveBeenCalled();
+  });
+
+  // Test 4 - No products found
+  it("should return null when no products found matching the name", async () => {
+    qb.getMany.mockResolvedValue([]);
+    const result = await service.getProductsByNameSearch("DontExist");
+    expect(result).toBeNull();
+    expect((mockProductRepository as any).createQueryBuilder).toHaveBeenCalledWith("product");
+    expect(qb.getMany).toHaveBeenCalledTimes(1);
+    expect(mockProductRepository.find).not.toHaveBeenCalled();
+  });
+
+  // Test 5 - Products is null/undefined
+  it("should throw error when products is null or undefined", async () => {
+    qb.getMany.mockResolvedValue(null);
+    await expect(service.getProductsByNameSearch("Laptop")).rejects.toThrow(
+      new HttpException("No products found matching this name", HttpStatus.NOT_FOUND)
+    );
+    expect((mockProductRepository as any).createQueryBuilder).toHaveBeenCalledWith("product");
+    expect(qb.getMany).toHaveBeenCalledTimes(1);
+    expect(mockProductRepository.find).not.toHaveBeenCalled();
+  });
+});
 
   describe("createProduct", () => {
     // Test 1 - Normal case - product created

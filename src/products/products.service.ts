@@ -11,6 +11,11 @@ export class ProductsService {
     @InjectRepository(Product) private productRepository: Repository<Product>,
     private categoryService: CategoryService,
   ) {}
+
+  private escapeLike(input: string): string{
+    return input.replace(/[%_\\]/g, '\\$&');
+  }
+
   async getProducts() {
     let products = await this.productRepository.find({
       relations: ['orderItems', 'category'],
@@ -51,14 +56,22 @@ export class ProductsService {
     return products;
   }
   async getProductsByNameSearch(name: string) {
-    if (!name || name.trim() === '') {
+    const query = name?.trim();
+    if (!query) {
       throw new HttpException('Invalid product name', HttpStatus.BAD_REQUEST);
     }
 
-    const products = await this.productRepository.find({
-      where: { name: Like(`%${name}%`) },
-      relations: ['orderItems', 'category'],
-    });
+    if(query.length > 100){
+      throw new HttpException('Query too long', HttpStatus.BAD_REQUEST);
+    }
+
+    const escaped = this.escapeLike(query);
+
+    const products = await this.productRepository.createQueryBuilder('product')
+    .leftJoinAndSelect('product.orderItems', 'orderItems')
+    .leftJoinAndSelect('product.category', 'category')
+    .where("product.name LIKE :name ESCAPE '\\\\'", {name: `%${escaped}`})
+    .getMany();
 
     if (!products) {
       throw new HttpException(

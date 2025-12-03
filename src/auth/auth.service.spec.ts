@@ -264,10 +264,9 @@ describe('AuthService', () => {
     const newHashedToken = 'new_hashed_token';
 
     beforeEach(() => {
-      mockJwtService.decode.mockReturnValue(mockPayload);
+      mockJwtService.verify.mockReturnValue(mockPayload);
       mockUserService.getRefreshToken.mockResolvedValue(mockStoredToken);
       (hashingTokens.compareTokens as jest.Mock).mockResolvedValue(true);
-      mockJwtService.verify.mockReturnValue(true);
       mockJwtService.sign
         .mockReturnValueOnce(newAccessToken)
         .mockReturnValueOnce(newRefreshToken);
@@ -284,19 +283,17 @@ describe('AuthService', () => {
       });
     });
 
-    it('should decode the refresh token', async () => {
+    it('should verify the refresh token and extract payload', async () => {
       await service.refreshToken(mockRefreshToken);
 
-      expect(mockJwtService.decode).toHaveBeenCalledWith(mockRefreshToken);
+      expect(mockJwtService.verify).toHaveBeenCalledWith(mockRefreshToken);
     });
 
-    it('should throw UnauthorizedException when token cannot be decoded', async () => {
-      mockJwtService.decode.mockReturnValue(null);
-
-      await expect(service.refreshToken(mockRefreshToken)).rejects.toThrow(
+    it('should throw UnauthorizedException when token is missing', async () => {
+      await expect(service.refreshToken('')).rejects.toThrow(
         UnauthorizedException,
       );
-      await expect(service.refreshToken(mockRefreshToken)).rejects.toThrow(
+      await expect(service.refreshToken('')).rejects.toThrow(
         'Invalid refresh token',
       );
     });
@@ -313,6 +310,7 @@ describe('AuthService', () => {
       await expect(service.refreshToken(mockRefreshToken)).rejects.toThrow(
         UnauthorizedException,
       );
+
       await expect(service.refreshToken(mockRefreshToken)).rejects.toThrow(
         'Invalid refresh token',
       );
@@ -338,27 +336,13 @@ describe('AuthService', () => {
       );
     });
 
-    it('should verify token signature', async () => {
-      await service.refreshToken(mockRefreshToken);
-
-      expect(mockJwtService.verify).toHaveBeenCalledWith(mockRefreshToken);
-    });
-
-    it('should throw UnauthorizedException when token verification fails', async () => {
-      mockJwtService.verify.mockReturnValue(false);
-
-      await expect(service.refreshToken(mockRefreshToken)).rejects.toThrow(
-        UnauthorizedException,
-      );
-    });
-
     it('should create new access token with correct payload and expiration', async () => {
       await service.refreshToken(mockRefreshToken);
 
       expect(mockJwtService.sign).toHaveBeenNthCalledWith(
         1,
         { username: 'testuser', sub: 1 },
-        { expiresIn: '60s' },
+        { expiresIn: '600s' },
       );
     });
 
@@ -388,11 +372,7 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException when payload is missing sub', async () => {
-      // Mock decode to return payload without sub
-      mockJwtService.decode.mockReturnValue({ username: 'test' });
-      
-      // The getRefreshToken will be called with undefined/NaN, which should return null
-      mockUserService.getRefreshToken.mockResolvedValue(null);
+      mockJwtService.verify.mockReturnValue({ username: 'test' } as any);
 
       await expect(service.refreshToken(mockRefreshToken)).rejects.toThrow(
         UnauthorizedException,
@@ -410,11 +390,16 @@ describe('AuthService', () => {
       await expect(service.refreshToken(mockRefreshToken)).rejects.toThrow(
         UnauthorizedException,
       );
+      await expect(service.refreshToken(mockRefreshToken)).rejects.toThrow(
+        'Invalid refresh token',
+      );
     });
 
     it('should log errors before throwing', async () => {
       const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
-      mockJwtService.decode.mockReturnValue(null);
+      mockJwtService.verify.mockImplementation(() => {
+        throw new Error('Unexpected error');
+      });
 
       await expect(service.refreshToken(mockRefreshToken)).rejects.toThrow(
         UnauthorizedException,
@@ -425,7 +410,7 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException for any unexpected errors', async () => {
-      mockJwtService.decode.mockImplementation(() => {
+      mockJwtService.verify.mockImplementation(() => {
         throw new Error('Unexpected error');
       });
 
