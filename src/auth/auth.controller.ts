@@ -70,6 +70,6 @@ export class AuthController {
     res.clearCookie('access_token', { path: '/' });
     res.clearCookie('refresh_token', { path: '/auth/refresh' });
     res.clearCookie('refresh_token', { path: '/' });
-    return this.authService.logout(req.user.sub);
+    return this.authService.logout(req.user.userId);
   }
 }
