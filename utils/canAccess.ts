@@ -1,7 +1,7 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { Request } from 'express';
 
-export function canAccess(req: Request & { user?: any }, userId?: number) {
+export function canAccessUser(req: Request & { user?: any }, userId?: number) {
   const role = req.user?.role;
   if (role === 'admin') return;
 
@@ -13,4 +13,9 @@ export function canAccess(req: Request & { user?: any }, userId?: number) {
   if (userId === undefined) {
     throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
   }
+}
+
+export function canAccess(req: Request & { user?: any }) {
+  const role = req.user?.role;
+  return role === "admin";
 }

@@ -14,19 +14,19 @@ import {
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { UpdateUserDto } from 'src/user/dtos/UpdateUserDto';
-import { canAccess } from 'utils/canAccess';
+import { canAccessUser } from 'utils/canAccess';
 
 @Controller('user')
 export class UserController {
   constructor(private userService: UserService) {}
   @Get()
   getUsers(@Req() req: any) {
-    canAccess(req);
+    canAccessUser(req);
     return this.userService.getAllUsers();
   }
   @Get(':id')
   getUserById(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
-    canAccess(req, id);
+    canAccessUser(req, id);
     return this.userService.getUserById(id);
   }
 
@@ -36,12 +36,12 @@ export class UserController {
     @Body() updateUserDto: UpdateUserDto,
     @Req() req: any,
   ) {
-    canAccess(req, id);
+    canAccessUser(req, id);
     return this.userService.updateUser(id, updateUserDto);
   }
   @Delete(':id')
   deleteUserById(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
-    canAccess(req, id);
+    canAccessUser(req, id);
     return this.userService.deleteUserById(id);
   }
   @Put('/changePassword/:id')
@@ -50,7 +50,7 @@ export class UserController {
     @Param('id', ParseIntPipe) id: number,
     @Body() changePasswordDto: { oldPassword: string; newPassword: string },
   ) {
-    canAccess(req, id);
+    canAccessUser(req, id);
     return this.userService.changePassword(
       id,
       changePasswordDto.oldPassword,
@@ -59,7 +59,7 @@ export class UserController {
   }
   @Get('/verifyEmail')
   emailActions(@Req() req: any, @Query('email') email: string, @Query('emailType') emailType: string) {
-    canAccess(req);
+    canAccessUser(req);
     return this.userService.emailActions(email, emailType);
   }
   @Get('/verifyEmail/confirm')

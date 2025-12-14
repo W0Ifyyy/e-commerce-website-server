@@ -1,3 +1,8 @@
+// mock auth helper used in OrdersService
+jest.mock('utils/canAccess', () => ({
+  canAccessUser: jest.fn(),
+}));
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { OrdersService } from './orders.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
@@ -6,6 +11,7 @@ import { Product } from 'src/typeorm/entities/Product';
 import { User } from 'src/typeorm/entities/User';
 import { Repository } from 'typeorm';
 import { HttpException, HttpStatus } from '@nestjs/common';
+import { canAccessUser } from 'utils/canAccess';
 
 describe('OrdersService', () => {
   let service: OrdersService;
@@ -59,6 +65,10 @@ describe('OrdersService', () => {
     totalAmount: 200,
     status: 'PENDING',
     createdAt: new Date(),
+  };
+
+  const mockReq: any = {
+    user: { userId: 1, role: 'admin' },
   };
 
   beforeEach(async () => {
@@ -150,7 +160,7 @@ describe('OrdersService', () => {
     it('should return an order by id with relations', async () => {
       mockOrderRepository.findOne.mockResolvedValue(mockOrder);
 
-      const result = await service.getOrderById(1);
+      const result = await service.getOrderById(1, mockReq);
 
       expect(result).toEqual({
         statusCode: 200,
@@ -164,21 +174,21 @@ describe('OrdersService', () => {
     });
 
     it('should throw BAD_REQUEST for invalid order ID (zero)', async () => {
-      await expect(service.getOrderById(0)).rejects.toThrow(
+      await expect(service.getOrderById(0, mockReq)).rejects.toThrow(
         new HttpException('Invalid order ID', HttpStatus.BAD_REQUEST),
       );
       expect(mockOrderRepository.findOne).not.toHaveBeenCalled();
     });
 
     it('should throw BAD_REQUEST for invalid order ID (negative)', async () => {
-      await expect(service.getOrderById(-1)).rejects.toThrow(
+      await expect(service.getOrderById(-1, mockReq)).rejects.toThrow(
         new HttpException('Invalid order ID', HttpStatus.BAD_REQUEST),
       );
       expect(mockOrderRepository.findOne).not.toHaveBeenCalled();
     });
 
     it('should throw BAD_REQUEST for null order ID', async () => {
-      await expect(service.getOrderById(null)).rejects.toThrow(
+      await expect(service.getOrderById(null, mockReq)).rejects.toThrow(
         new HttpException('Invalid order ID', HttpStatus.BAD_REQUEST),
       );
     });
@@ -187,7 +197,7 @@ describe('OrdersService', () => {
       mockOrderRepository.findOne.mockResolvedValue(null);
 
       try {
-        await service.getOrderById(999);
+        await service.getOrderById(999, mockReq);
       } catch (error) {
         expect(error).toBeInstanceOf(HttpException);
         expect(error.message).toContain('Order with that id does not exist!');
@@ -198,7 +208,7 @@ describe('OrdersService', () => {
     it('should wrap NOT_FOUND error as INTERNAL_SERVER_ERROR', async () => {
       mockOrderRepository.findOne.mockResolvedValue(null);
 
-      await expect(service.getOrderById(999)).rejects.toThrow(
+      await expect(service.getOrderById(999, mockReq)).rejects.toThrow(
         'An error occurred while getting order by id',
       );
     });
@@ -208,8 +218,10 @@ describe('OrdersService', () => {
         new Error('Database error'),
       );
 
-      await expect(service.getOrderById(1)).rejects.toThrow(HttpException);
-      await expect(service.getOrderById(1)).rejects.toThrow(
+      await expect(service.getOrderById(1, mockReq)).rejects.toThrow(
+        HttpException,
+      );
+      await expect(service.getOrderById(1, mockReq)).rejects.toThrow(
         'An error occurred while getting order by id: Database error',
       );
     });
@@ -230,7 +242,7 @@ describe('OrdersService', () => {
       mockOrderRepository.create.mockReturnValue(mockOrder);
       mockOrderRepository.save.mockResolvedValue(mockOrder);
 
-      const result = await service.createOrder(createOrderParams);
+      const result = await service.createOrder(createOrderParams, mockReq);
 
       expect(result).toEqual({
         msg: 'Order created successfully!',
@@ -245,7 +257,7 @@ describe('OrdersService', () => {
 
     it('should throw BAD_REQUEST for invalid user ID (zero)', async () => {
       await expect(
-        service.createOrder({ ...createOrderParams, userId: 0 }),
+        service.createOrder({ ...createOrderParams, userId: 0 }, mockReq),
       ).rejects.toThrow(
         new HttpException('Invalid user ID', HttpStatus.BAD_REQUEST),
       );
@@ -254,7 +266,7 @@ describe('OrdersService', () => {
 
     it('should throw BAD_REQUEST for invalid user ID (negative)', async () => {
       await expect(
-        service.createOrder({ ...createOrderParams, userId: -1 }),
+        service.createOrder({ ...createOrderParams, userId: -1 }, mockReq),
       ).rejects.toThrow(
         new HttpException('Invalid user ID', HttpStatus.BAD_REQUEST),
       );
@@ -262,7 +274,7 @@ describe('OrdersService', () => {
 
     it('should throw BAD_REQUEST for null user ID', async () => {
       await expect(
-        service.createOrder({ ...createOrderParams, userId: null }),
+        service.createOrder({ ...createOrderParams, userId: null }, mockReq),
       ).rejects.toThrow(
         new HttpException('Invalid user ID', HttpStatus.BAD_REQUEST),
       );
@@ -272,7 +284,7 @@ describe('OrdersService', () => {
       mockUserRepository.findOne.mockResolvedValue(null);
 
       try {
-        await service.createOrder(createOrderParams);
+        await service.createOrder(createOrderParams, mockReq);
       } catch (error) {
         expect(error).toBeInstanceOf(HttpException);
         expect(error.message).toContain(
@@ -287,7 +299,7 @@ describe('OrdersService', () => {
       mockProductRepository.find.mockResolvedValue([]); // No products found
 
       try {
-        await service.createOrder(createOrderParams);
+        await service.createOrder(createOrderParams, mockReq);
       } catch (error) {
         expect(error).toBeInstanceOf(HttpException);
         expect(error.message).toContain('One or more products not found');
@@ -307,7 +319,7 @@ describe('OrdersService', () => {
       };
 
       try {
-        await service.createOrder(paramsWithMultipleProducts);
+        await service.createOrder(paramsWithMultipleProducts, mockReq);
       } catch (error) {
         expect(error).toBeInstanceOf(HttpException);
         expect(error.message).toContain('One or more products not found');
@@ -327,7 +339,7 @@ describe('OrdersService', () => {
         items: [],
       };
 
-      const result = await service.createOrder(paramsWithoutItems);
+      const result = await service.createOrder(paramsWithoutItems, mockReq);
 
       expect(result.msg).toBe('Order created successfully!');
       expect(mockProductRepository.find).not.toHaveBeenCalled();
@@ -346,7 +358,7 @@ describe('OrdersService', () => {
         totalAmount: 100,
       };
 
-      await service.createOrder(paramsWithoutStatus);
+      await service.createOrder(paramsWithoutStatus, mockReq);
 
       expect(mockOrderRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'PENDING' }),
@@ -359,7 +371,7 @@ describe('OrdersService', () => {
       mockOrderRepository.create.mockImplementation((order) => order);
       mockOrderRepository.save.mockImplementation((order) => order);
 
-      await service.createOrder(createOrderParams);
+      await service.createOrder(createOrderParams, mockReq);
 
       const createCall = mockOrderRepository.create.mock.calls[0][0];
       expect(createCall.items[0].unitPrice).toBe(mockProduct.price);
@@ -373,7 +385,9 @@ describe('OrdersService', () => {
         new Error('Database save failed'),
       );
 
-      await expect(service.createOrder(createOrderParams)).rejects.toThrow(
+      await expect(
+        service.createOrder(createOrderParams, mockReq),
+      ).rejects.toThrow(
         'An error occurred while creating the order: Database save failed',
       );
     });
@@ -393,7 +407,7 @@ describe('OrdersService', () => {
         ...updateOrderParams,
       });
 
-      const result = await service.updateOrder(1, updateOrderParams);
+      const result = await service.updateOrder(1, updateOrderParams, mockReq);
 
       expect(result).toEqual({
         msg: 'Order updated successfully!',
@@ -401,14 +415,14 @@ describe('OrdersService', () => {
       });
       expect(mockOrderRepository.findOne).toHaveBeenCalledWith({
         where: { id: 1 },
-        relations: ['items'],
+        relations: ['user', 'items', 'items.product'],
       });
       expect(mockOrderRepository.save).toHaveBeenCalled();
     });
 
     it('should throw BAD_REQUEST for invalid order ID (zero)', async () => {
       await expect(
-        service.updateOrder(0, updateOrderParams),
+        service.updateOrder(0, updateOrderParams, mockReq),
       ).rejects.toThrow(
         new HttpException('Invalid Order ID', HttpStatus.BAD_REQUEST),
       );
@@ -417,7 +431,7 @@ describe('OrdersService', () => {
 
     it('should throw BAD_REQUEST for invalid order ID (negative)', async () => {
       await expect(
-        service.updateOrder(-5, updateOrderParams),
+        service.updateOrder(-5, updateOrderParams, mockReq),
       ).rejects.toThrow(
         new HttpException('Invalid Order ID', HttpStatus.BAD_REQUEST),
       );
@@ -425,7 +439,7 @@ describe('OrdersService', () => {
 
     it('should throw BAD_REQUEST for null order ID', async () => {
       await expect(
-        service.updateOrder(null, updateOrderParams),
+        service.updateOrder(null, updateOrderParams, mockReq),
       ).rejects.toThrow(
         new HttpException('Invalid Order ID', HttpStatus.BAD_REQUEST),
       );
@@ -435,7 +449,7 @@ describe('OrdersService', () => {
       mockOrderRepository.findOne.mockResolvedValue(null);
 
       try {
-        await service.updateOrder(999, updateOrderParams);
+        await service.updateOrder(999, updateOrderParams, mockReq);
       } catch (error) {
         expect(error).toBeInstanceOf(HttpException);
         expect(error.message).toContain('Order with this ID does not exist!');
@@ -447,7 +461,7 @@ describe('OrdersService', () => {
       mockOrderRepository.findOne.mockResolvedValue(mockOrder);
       mockOrderRepository.save.mockResolvedValue(updatedOrder);
 
-      await service.updateOrder(1, { name: 'New Name' });
+      await service.updateOrder(1, { name: 'New Name' }, mockReq);
 
       const savedOrder = mockOrderRepository.save.mock.calls[0][0];
       expect(savedOrder.name).toBe('New Name');
@@ -458,7 +472,7 @@ describe('OrdersService', () => {
       mockOrderRepository.findOne.mockResolvedValue(mockOrder);
       mockOrderRepository.save.mockResolvedValue(updatedOrder);
 
-      await service.updateOrder(1, { status: 'CANCELED' });
+      await service.updateOrder(1, { status: 'CANCELED' }, mockReq);
 
       const savedOrder = mockOrderRepository.save.mock.calls[0][0];
       expect(savedOrder.status).toBe('CANCELED');
@@ -469,7 +483,7 @@ describe('OrdersService', () => {
       mockOrderRepository.findOne.mockResolvedValue(mockOrder);
       mockOrderRepository.save.mockResolvedValue(updatedOrder);
 
-      await service.updateOrder(1, { totalAmount: 500 });
+      await service.updateOrder(1, { totalAmount: 500 }, mockReq);
 
       const savedOrder = mockOrderRepository.save.mock.calls[0][0];
       expect(savedOrder.totalAmount).toBe(500);
@@ -484,7 +498,7 @@ describe('OrdersService', () => {
         user: newUser,
       });
 
-      await service.updateOrder(1, { userId: 2 });
+      await service.updateOrder(1, { userId: 2 }, mockReq);
 
       expect(mockUserRepository.findOne).toHaveBeenCalledWith({
         where: { id: 2 },
@@ -498,7 +512,7 @@ describe('OrdersService', () => {
       mockUserRepository.findOne.mockResolvedValue(null);
 
       try {
-        await service.updateOrder(1, { userId: 999 });
+        await service.updateOrder(1, { userId: 999 }, mockReq);
       } catch (error) {
         expect(error).toBeInstanceOf(HttpException);
         expect(error.message).toContain('User with ID 999 not found');
@@ -509,7 +523,7 @@ describe('OrdersService', () => {
       mockOrderRepository.findOne.mockResolvedValue(mockOrder);
       mockOrderRepository.save.mockResolvedValue(mockOrder);
 
-      const result = await service.updateOrder(1, {});
+      const result = await service.updateOrder(1, {}, mockReq);
 
       expect(result.msg).toBe('Order updated successfully!');
       expect(mockOrderRepository.save).toHaveBeenCalledWith(mockOrder);
@@ -522,7 +536,7 @@ describe('OrdersService', () => {
       );
 
       await expect(
-        service.updateOrder(1, updateOrderParams),
+        service.updateOrder(1, updateOrderParams, mockReq),
       ).rejects.toThrow(
         'An error occurred while updating the order... Error: Database update failed',
       );
@@ -533,7 +547,7 @@ describe('OrdersService', () => {
       mockOrderRepository.save.mockRejectedValue(new Error('Some error'));
 
       try {
-        await service.updateOrder(1, updateOrderParams);
+        await service.updateOrder(1, updateOrderParams, mockReq);
       } catch (error) {
         expect(error).toBeInstanceOf(HttpException);
         expect(error.getStatus()).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -543,9 +557,10 @@ describe('OrdersService', () => {
 
   describe('deleteOrder', () => {
     it('should delete an order successfully', async () => {
+      mockOrderRepository.findOne.mockResolvedValue(mockOrder);
       mockOrderRepository.delete.mockResolvedValue({ affected: 1 });
 
-      const result = await service.deleteOrder(1);
+      const result = await service.deleteOrder(1, mockReq);
 
       expect(result).toEqual({
         msg: 'Order deleted successfully',
@@ -556,29 +571,29 @@ describe('OrdersService', () => {
     });
 
     it('should throw BAD_REQUEST for invalid order ID (zero)', async () => {
-      await expect(service.deleteOrder(0)).rejects.toThrow(
+      await expect(service.deleteOrder(0, mockReq)).rejects.toThrow(
         new HttpException('Invalid Order ID', HttpStatus.BAD_REQUEST),
       );
       expect(mockOrderRepository.delete).not.toHaveBeenCalled();
     });
 
     it('should throw BAD_REQUEST for invalid order ID (negative)', async () => {
-      await expect(service.deleteOrder(-10)).rejects.toThrow(
+      await expect(service.deleteOrder(-10, mockReq)).rejects.toThrow(
         new HttpException('Invalid Order ID', HttpStatus.BAD_REQUEST),
       );
     });
 
     it('should throw BAD_REQUEST for null order ID', async () => {
-      await expect(service.deleteOrder(null)).rejects.toThrow(
+      await expect(service.deleteOrder(null, mockReq)).rejects.toThrow(
         new HttpException('Invalid Order ID', HttpStatus.BAD_REQUEST),
       );
     });
 
     it('should throw NOT_FOUND when order does not exist', async () => {
-      mockOrderRepository.delete.mockResolvedValue({ affected: 0 });
+      mockOrderRepository.findOne.mockResolvedValue(null);
 
       try {
-        await service.deleteOrder(999);
+        await service.deleteOrder(999, mockReq);
       } catch (error) {
         expect(error).toBeInstanceOf(HttpException);
         expect(error.message).toContain(
@@ -588,10 +603,10 @@ describe('OrdersService', () => {
     });
 
     it('should wrap NOT_FOUND as INTERNAL_SERVER_ERROR', async () => {
-      mockOrderRepository.delete.mockResolvedValue({ affected: 0 });
+      mockOrderRepository.findOne.mockResolvedValue(null);
 
       try {
-        await service.deleteOrder(999);
+        await service.deleteOrder(999, mockReq);
       } catch (error) {
         expect(error).toBeInstanceOf(HttpException);
         expect(error.getStatus()).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -599,22 +614,24 @@ describe('OrdersService', () => {
     });
 
     it('should propagate database errors', async () => {
+      mockOrderRepository.findOne.mockResolvedValue(mockOrder);
       mockOrderRepository.delete.mockRejectedValue(
         new Error('Database deletion failed'),
       );
 
-      await expect(service.deleteOrder(1)).rejects.toThrow(
+      await expect(service.deleteOrder(1, mockReq)).rejects.toThrow(
         'An error occured while deleting the order... Error: Database deletion failed',
       );
     });
 
     it('should wrap all errors as INTERNAL_SERVER_ERROR', async () => {
+      mockOrderRepository.findOne.mockResolvedValue(mockOrder);
       mockOrderRepository.delete.mockRejectedValue(
         new Error('Unexpected error'),
       );
 
       try {
-        await service.deleteOrder(1);
+        await service.deleteOrder(1, mockReq);
       } catch (error) {
         expect(error).toBeInstanceOf(HttpException);
         expect(error.getStatus()).toBe(HttpStatus.INTERNAL_SERVER_ERROR);

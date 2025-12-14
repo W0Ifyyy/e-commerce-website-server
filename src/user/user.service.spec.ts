@@ -5,10 +5,23 @@ import { User } from 'src/typeorm/entities/User';
 import { Repository } from 'typeorm';
 import { HttpException, HttpStatus } from '@nestjs/common';
 import * as creatingPassword from 'utils/creatingPassword';
+import * as hashingTokens from 'utils/hashingTokens';
+import nodemailer from 'nodemailer';
 
 jest.mock('utils/creatingPassword', () => ({
   comparePassword: jest.fn(),
   hashPassword: jest.fn(),
+}));
+
+jest.mock('utils/hashingTokens', () => ({
+  hashToken: jest.fn(),
+}));
+
+jest.mock('nodemailer', () => ({
+  __esModule: true,
+  default: {
+    createTransport: jest.fn(),
+  },
 }));
 
 describe('UserService', () => {
@@ -53,7 +66,9 @@ describe('UserService', () => {
       const result = await service.getAllUsers();
 
       expect(result).toEqual(mockUsers);
-      expect(mockRepository.find).toHaveBeenCalledWith({ relations: ['orders'] });
+      expect(mockRepository.find).toHaveBeenCalledWith({
+        relations: ['orders'],
+      });
     });
   });
 
@@ -124,7 +139,10 @@ describe('UserService', () => {
         password: 'password123',
         name: 'Test',
       };
-      mockRepository.findOne.mockResolvedValue({ id: 1, email: mockParams.email });
+      mockRepository.findOne.mockResolvedValue({
+        id: 1,
+        email: mockParams.email,
+      });
 
       await expect(service.createUser(mockParams)).rejects.toThrow(
         new HttpException(
@@ -174,7 +192,9 @@ describe('UserService', () => {
       const result = await service.updateUser(1, { name: 'Updated' });
 
       expect(result.msg).toBe('User updated successfully!');
-      expect(mockRepository.update).toHaveBeenCalledWith(1, { name: 'Updated' });
+      expect(mockRepository.update).toHaveBeenCalledWith(1, {
+        name: 'Updated',
+      });
     });
 
     it('should throw BAD_REQUEST for invalid id', async () => {
@@ -212,9 +232,7 @@ describe('UserService', () => {
     it('should throw NOT_FOUND when user does not exist', async () => {
       mockRepository.delete.mockResolvedValue({ affected: 0 });
 
-      await expect(service.deleteUserById(999)).rejects.toThrow(
-        HttpException,
-      );
+      await expect(service.deleteUserById(999)).rejects.toThrow(HttpException);
     });
 
     it('should wrap repository errors as INTERNAL_SERVER_ERROR', async () => {
@@ -305,7 +323,9 @@ describe('UserService', () => {
       mockRepository.findOne.mockResolvedValue(mockUser);
       mockRepository.update.mockResolvedValue({ affected: 1 });
       (creatingPassword.comparePassword as jest.Mock).mockResolvedValue(true);
-      (creatingPassword.hashPassword as jest.Mock).mockResolvedValue('newHashed');
+      (creatingPassword.hashPassword as jest.Mock).mockResolvedValue(
+        'newHashed',
+      );
 
       const result = await service.changePassword(
         1,
@@ -321,7 +341,9 @@ describe('UserService', () => {
       mockRepository.findOne.mockResolvedValue(mockUser);
       mockRepository.update.mockResolvedValue({ affected: 1 });
       (creatingPassword.comparePassword as jest.Mock).mockResolvedValue(true);
-      (creatingPassword.hashPassword as jest.Mock).mockResolvedValue('hashedNew');
+      (creatingPassword.hashPassword as jest.Mock).mockResolvedValue(
+        'hashedNew',
+      );
 
       await service.changePassword(10, 'oldPlain', 'newPlain');
 
@@ -361,7 +383,9 @@ describe('UserService', () => {
       const mockUser = { id: 3, password: 'hashedPassword' };
       mockRepository.findOne.mockResolvedValue(mockUser);
       (creatingPassword.comparePassword as jest.Mock).mockResolvedValue(true);
-      (creatingPassword.hashPassword as jest.Mock).mockResolvedValue('newHashed');
+      (creatingPassword.hashPassword as jest.Mock).mockResolvedValue(
+        'newHashed',
+      );
       mockRepository.update.mockResolvedValue({ affected: 0 });
 
       await expect(
@@ -383,6 +407,64 @@ describe('UserService', () => {
         service.changePassword(5, 'old', 'new'),
       ).rejects.toThrow(
         /An error occured while changing the password: hash crash/,
+      );
+    });
+  });
+
+  describe('emailActions', () => {
+    it('should send verify email and update verify token', async () => {
+      const user = { id: 1, email: 'test@test.com' } as any;
+      mockRepository.findOne.mockResolvedValue(user);
+      (hashingTokens.hashToken as jest.Mock).mockResolvedValue('hashedToken');
+
+      const sendMail = jest.fn().mockResolvedValue('mail-ok');
+      (nodemailer as any).createTransport.mockReturnValue({ sendMail });
+
+      const result = await service.emailActions(user.email, 'VERIFY');
+
+      expect(hashingTokens.hashToken).toHaveBeenCalledWith(user.id.toString());
+      expect(mockRepository.update).toHaveBeenCalledWith(
+        user.id,
+        expect.objectContaining({
+          verifyToken: 'hashedToken',
+        }),
+      );
+      expect(sendMail).toHaveBeenCalled();
+      expect(result).toBe('mail-ok');
+    });
+
+    it('should send reset email and update reset token', async () => {
+      const user = { id: 2, email: 'reset@test.com' } as any;
+      mockRepository.findOne.mockResolvedValue(user);
+      (hashingTokens.hashToken as jest.Mock).mockResolvedValue('resetHashed');
+
+      const sendMail = jest.fn().mockResolvedValue('reset-ok');
+      (nodemailer as any).createTransport.mockReturnValue({ sendMail });
+
+      const result = await service.emailActions(user.email, 'RESET');
+
+      expect(hashingTokens.hashToken).toHaveBeenCalledWith(user.id.toString());
+      expect(mockRepository.update).toHaveBeenCalledWith(
+        user.id,
+        expect.objectContaining({
+          forgetPasswordToken: 'resetHashed',
+        }),
+      );
+      expect(sendMail).toHaveBeenCalled();
+      expect(result).toBe('reset-ok');
+    });
+
+    it('should wrap errors from hashToken/sendMail as INTERNAL_SERVER_ERROR', async () => {
+      const user = { id: 3, email: 'err@test.com' } as any;
+      mockRepository.findOne.mockResolvedValue(user);
+      (hashingTokens.hashToken as jest.Mock).mockRejectedValue(
+        new Error('hash fail'),
+      );
+
+      await expect(
+        service.emailActions(user.email, 'VERIFY'),
+      ).rejects.toThrow(
+        /An error occured while verifying email: hash fail/,
       );
     });
   });

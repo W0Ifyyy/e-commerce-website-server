@@ -1,9 +1,16 @@
+// mock auth helpers
+jest.mock('utils/canAccess', () => ({
+  canAccess: jest.fn(),
+  canAccessUser: jest.fn(),
+}));
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dtos/CreateOrderDto';
 import { UpdateOrderDto } from './dtos/UpdateOrderDto';
 import { HttpException, HttpStatus } from '@nestjs/common';
+import { canAccess, canAccessUser } from 'utils/canAccess';
 
 describe('OrdersController', () => {
 
@@ -37,6 +44,10 @@ describe('OrdersController', () => {
     createdAt: new Date(),
   };
 
+  const mockReq: any = {
+    user: { userId: 1, role: 'admin' },
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [OrdersController],
@@ -67,8 +78,9 @@ describe('OrdersController', () => {
         orders: [mockOrder],
       };
       mockOrdersService.getAllOrders.mockResolvedValue(mockResponse);
+      (canAccess as jest.Mock).mockReturnValue(true);
 
-      const result = await controller.getOrders();
+      const result = await controller.getOrders(mockReq);
 
       expect(result).toEqual(mockResponse);
       expect(mockOrdersService.getAllOrders).toHaveBeenCalledTimes(1);
@@ -81,8 +93,9 @@ describe('OrdersController', () => {
         orders: [],
       };
       mockOrdersService.getAllOrders.mockResolvedValue(mockResponse);
+      (canAccess as jest.Mock).mockReturnValue(true);
 
-      const result = await controller.getOrders();
+      const result = await controller.getOrders(mockReq);
 
       expect(result).toEqual(mockResponse);
       expect(result.orders).toHaveLength(0);
@@ -94,17 +107,32 @@ describe('OrdersController', () => {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
       mockOrdersService.getAllOrders.mockRejectedValue(error);
+      (canAccess as jest.Mock).mockReturnValue(true);
 
-      await expect(controller.getOrders()).rejects.toThrow(HttpException);
-      await expect(controller.getOrders()).rejects.toThrow('Database error');
+      await expect(controller.getOrders(mockReq)).rejects.toThrow(
+        HttpException,
+      );
+      await expect(controller.getOrders(mockReq)).rejects.toThrow(
+        'Database error',
+      );
     });
 
     it('should handle unexpected errors', async () => {
       mockOrdersService.getAllOrders.mockRejectedValue(
         new Error('Unexpected error'),
       );
+      (canAccess as jest.Mock).mockReturnValue(true);
 
-      await expect(controller.getOrders()).rejects.toThrow('Unexpected error');
+      await expect(controller.getOrders(mockReq)).rejects.toThrow(
+        'Unexpected error',
+      );
+    });
+
+    it('should throw Unauthorized when canAccess returns false', () => {
+      (canAccess as jest.Mock).mockReturnValue(false);
+
+      expect(() => controller.getOrders(mockReq)).toThrow(HttpException);
+      expect(() => controller.getOrders(mockReq)).toThrow('Unauthorized');
     });
   });
 
@@ -117,10 +145,10 @@ describe('OrdersController', () => {
       };
       mockOrdersService.getOrderById.mockResolvedValue(mockResponse);
 
-      const result = await controller.getOrderById(1);
+      const result = await controller.getOrderById(1, mockReq);
 
       expect(result).toEqual(mockResponse);
-      expect(mockOrdersService.getOrderById).toHaveBeenCalledWith(1);
+      expect(mockOrdersService.getOrderById).toHaveBeenCalledWith(1, mockReq);
       expect(mockOrdersService.getOrderById).toHaveBeenCalledTimes(1);
     });
 
@@ -132,9 +160,12 @@ describe('OrdersController', () => {
         order: { ...mockOrder, id: orderId },
       });
 
-      await controller.getOrderById(orderId);
+      await controller.getOrderById(orderId, mockReq);
 
-      expect(mockOrdersService.getOrderById).toHaveBeenCalledWith(orderId);
+      expect(mockOrdersService.getOrderById).toHaveBeenCalledWith(
+        orderId,
+        mockReq,
+      );
     });
 
     it('should propagate BAD_REQUEST error for invalid id', async () => {
@@ -144,8 +175,10 @@ describe('OrdersController', () => {
       );
       mockOrdersService.getOrderById.mockRejectedValue(error);
 
-      await expect(controller.getOrderById(0)).rejects.toThrow(HttpException);
-      await expect(controller.getOrderById(0)).rejects.toThrow(
+      await expect(controller.getOrderById(0, mockReq)).rejects.toThrow(
+        HttpException,
+      );
+      await expect(controller.getOrderById(0, mockReq)).rejects.toThrow(
         'Invalid order ID',
       );
     });
@@ -157,8 +190,10 @@ describe('OrdersController', () => {
       );
       mockOrdersService.getOrderById.mockRejectedValue(error);
 
-      await expect(controller.getOrderById(999)).rejects.toThrow(HttpException);
-      await expect(controller.getOrderById(999)).rejects.toThrow(
+      await expect(controller.getOrderById(999, mockReq)).rejects.toThrow(
+        HttpException,
+      );
+      await expect(controller.getOrderById(999, mockReq)).rejects.toThrow(
         'Order with that id does not exist',
       );
     });
@@ -170,7 +205,9 @@ describe('OrdersController', () => {
       );
       mockOrdersService.getOrderById.mockRejectedValue(error);
 
-      await expect(controller.getOrderById(1)).rejects.toThrow(HttpException);
+      await expect(controller.getOrderById(1, mockReq)).rejects.toThrow(
+        HttpException,
+      );
     });
   });
 
@@ -190,11 +227,12 @@ describe('OrdersController', () => {
       };
       mockOrdersService.createOrder.mockResolvedValue(mockResponse);
 
-      const result = await controller.createOrder(createOrderDto);
+      const result = await controller.createOrder(createOrderDto, mockReq);
 
       expect(result).toEqual(mockResponse);
       expect(mockOrdersService.createOrder).toHaveBeenCalledWith(
         createOrderDto,
+        mockReq,
       );
       expect(mockOrdersService.createOrder).toHaveBeenCalledTimes(1);
     });
@@ -205,10 +243,11 @@ describe('OrdersController', () => {
         order: mockOrder,
       });
 
-      await controller.createOrder(createOrderDto);
+      await controller.createOrder(createOrderDto, mockReq);
 
       expect(mockOrdersService.createOrder).toHaveBeenCalledWith(
         createOrderDto,
+        mockReq,
       );
     });
 
@@ -226,10 +265,11 @@ describe('OrdersController', () => {
         order: mockOrder,
       });
 
-      await controller.createOrder(dtoWithMultipleItems);
+      await controller.createOrder(dtoWithMultipleItems, mockReq);
 
       expect(mockOrdersService.createOrder).toHaveBeenCalledWith(
         dtoWithMultipleItems,
+        mockReq,
       );
     });
 
@@ -245,10 +285,11 @@ describe('OrdersController', () => {
         order: { ...mockOrder, items: [] },
       });
 
-      await controller.createOrder(dtoWithoutItems);
+      await controller.createOrder(dtoWithoutItems, mockReq);
 
       expect(mockOrdersService.createOrder).toHaveBeenCalledWith(
         dtoWithoutItems,
+        mockReq,
       );
     });
 
@@ -259,10 +300,12 @@ describe('OrdersController', () => {
       );
       mockOrdersService.createOrder.mockRejectedValue(error);
 
-      await expect(controller.createOrder(createOrderDto)).rejects.toThrow(
-        HttpException,
-      );
-      await expect(controller.createOrder(createOrderDto)).rejects.toThrow(
+      await expect(
+        controller.createOrder(createOrderDto, mockReq),
+      ).rejects.toThrow(HttpException);
+      await expect(
+        controller.createOrder(createOrderDto, mockReq),
+      ).rejects.toThrow(
         'Invalid user ID',
       );
     });
@@ -274,10 +317,12 @@ describe('OrdersController', () => {
       );
       mockOrdersService.createOrder.mockRejectedValue(error);
 
-      await expect(controller.createOrder(createOrderDto)).rejects.toThrow(
-        HttpException,
-      );
-      await expect(controller.createOrder(createOrderDto)).rejects.toThrow(
+      await expect(
+        controller.createOrder(createOrderDto, mockReq),
+      ).rejects.toThrow(HttpException);
+      await expect(
+        controller.createOrder(createOrderDto, mockReq),
+      ).rejects.toThrow(
         'User with ID 1 not found',
       );
     });
@@ -289,9 +334,9 @@ describe('OrdersController', () => {
       );
       mockOrdersService.createOrder.mockRejectedValue(error);
 
-      await expect(controller.createOrder(createOrderDto)).rejects.toThrow(
-        'One or more products not found',
-      );
+      await expect(
+        controller.createOrder(createOrderDto, mockReq),
+      ).rejects.toThrow('One or more products not found');
     });
 
     it('should propagate database save errors', async () => {
@@ -301,9 +346,9 @@ describe('OrdersController', () => {
       );
       mockOrdersService.createOrder.mockRejectedValue(error);
 
-      await expect(controller.createOrder(createOrderDto)).rejects.toThrow(
-        HttpException,
-      );
+      await expect(
+        controller.createOrder(createOrderDto, mockReq),
+      ).rejects.toThrow(HttpException);
     });
   });
 
@@ -321,12 +366,13 @@ describe('OrdersController', () => {
       };
       mockOrdersService.updateOrder.mockResolvedValue(mockResponse);
 
-      const result = await controller.updateOrder(1, updateOrderDto);
+      const result = await controller.updateOrder(1, updateOrderDto, mockReq);
 
       expect(result).toEqual(mockResponse);
       expect(mockOrdersService.updateOrder).toHaveBeenCalledWith(
         1,
         updateOrderDto,
+        mockReq,
       );
       expect(mockOrdersService.updateOrder).toHaveBeenCalledTimes(1);
     });
@@ -338,11 +384,12 @@ describe('OrdersController', () => {
         statusCode: 200,
       });
 
-      await controller.updateOrder(orderId, updateOrderDto);
+      await controller.updateOrder(orderId, updateOrderDto, mockReq);
 
       expect(mockOrdersService.updateOrder).toHaveBeenCalledWith(
         orderId,
         updateOrderDto,
+        mockReq,
       );
     });
 
@@ -353,9 +400,13 @@ describe('OrdersController', () => {
         statusCode: 200,
       });
 
-      await controller.updateOrder(1, partialDto);
+      await controller.updateOrder(1, partialDto, mockReq);
 
-      expect(mockOrdersService.updateOrder).toHaveBeenCalledWith(1, partialDto);
+      expect(mockOrdersService.updateOrder).toHaveBeenCalledWith(
+        1,
+        partialDto,
+        mockReq,
+      );
     });
 
     it('should handle partial updates - status only', async () => {
@@ -365,9 +416,13 @@ describe('OrdersController', () => {
         statusCode: 200,
       });
 
-      await controller.updateOrder(1, partialDto);
+      await controller.updateOrder(1, partialDto, mockReq);
 
-      expect(mockOrdersService.updateOrder).toHaveBeenCalledWith(1, partialDto);
+      expect(mockOrdersService.updateOrder).toHaveBeenCalledWith(
+        1,
+        partialDto,
+        mockReq,
+      );
     });
 
     it('should handle partial updates - totalAmount only', async () => {
@@ -377,9 +432,13 @@ describe('OrdersController', () => {
         statusCode: 200,
       });
 
-      await controller.updateOrder(1, partialDto);
+      await controller.updateOrder(1, partialDto, mockReq);
 
-      expect(mockOrdersService.updateOrder).toHaveBeenCalledWith(1, partialDto);
+      expect(mockOrdersService.updateOrder).toHaveBeenCalledWith(
+        1,
+        partialDto,
+        mockReq,
+      );
     });
 
     it('should handle empty update DTO', async () => {
@@ -389,9 +448,13 @@ describe('OrdersController', () => {
         statusCode: 200,
       });
 
-      await controller.updateOrder(1, emptyDto);
+      await controller.updateOrder(1, emptyDto, mockReq);
 
-      expect(mockOrdersService.updateOrder).toHaveBeenCalledWith(1, emptyDto);
+      expect(mockOrdersService.updateOrder).toHaveBeenCalledWith(
+        1,
+        emptyDto,
+        mockReq,
+      );
     });
 
     it('should propagate BAD_REQUEST error for invalid order ID', async () => {
@@ -401,10 +464,12 @@ describe('OrdersController', () => {
       );
       mockOrdersService.updateOrder.mockRejectedValue(error);
 
-      await expect(controller.updateOrder(0, updateOrderDto)).rejects.toThrow(
-        HttpException,
-      );
-      await expect(controller.updateOrder(0, updateOrderDto)).rejects.toThrow(
+      await expect(
+        controller.updateOrder(0, updateOrderDto, mockReq),
+      ).rejects.toThrow(HttpException);
+      await expect(
+        controller.updateOrder(0, updateOrderDto, mockReq),
+      ).rejects.toThrow(
         'Invalid Order ID',
       );
     });
@@ -417,7 +482,7 @@ describe('OrdersController', () => {
       mockOrdersService.updateOrder.mockRejectedValue(error);
 
       await expect(
-        controller.updateOrder(999, updateOrderDto),
+        controller.updateOrder(999, updateOrderDto, mockReq),
       ).rejects.toThrow('Order with this ID does not exist');
     });
 
@@ -429,9 +494,9 @@ describe('OrdersController', () => {
       );
       mockOrdersService.updateOrder.mockRejectedValue(error);
 
-      await expect(controller.updateOrder(1, dtoWithUserId)).rejects.toThrow(
-        'User with ID 999 not found',
-      );
+      await expect(
+        controller.updateOrder(1, dtoWithUserId, mockReq),
+      ).rejects.toThrow('User with ID 999 not found');
     });
 
     it('should propagate database errors', async () => {
@@ -441,9 +506,9 @@ describe('OrdersController', () => {
       );
       mockOrdersService.updateOrder.mockRejectedValue(error);
 
-      await expect(controller.updateOrder(1, updateOrderDto)).rejects.toThrow(
-        HttpException,
-      );
+      await expect(
+        controller.updateOrder(1, updateOrderDto, mockReq),
+      ).rejects.toThrow(HttpException);
     });
   });
 
@@ -455,10 +520,10 @@ describe('OrdersController', () => {
       };
       mockOrdersService.deleteOrder.mockResolvedValue(mockResponse);
 
-      const result = await controller.deleteOrder(1);
+      const result = await controller.deleteOrder(1, mockReq);
 
       expect(result).toEqual(mockResponse);
-      expect(mockOrdersService.deleteOrder).toHaveBeenCalledWith(1);
+      expect(mockOrdersService.deleteOrder).toHaveBeenCalledWith(1, mockReq);
       expect(mockOrdersService.deleteOrder).toHaveBeenCalledTimes(1);
     });
 
@@ -469,9 +534,12 @@ describe('OrdersController', () => {
         statusCode: 200,
       });
 
-      await controller.deleteOrder(orderId);
+      await controller.deleteOrder(orderId, mockReq);
 
-      expect(mockOrdersService.deleteOrder).toHaveBeenCalledWith(orderId);
+      expect(mockOrdersService.deleteOrder).toHaveBeenCalledWith(
+        orderId,
+        mockReq,
+      );
     });
 
     it('should propagate BAD_REQUEST error for invalid order ID', async () => {
@@ -481,8 +549,10 @@ describe('OrdersController', () => {
       );
       mockOrdersService.deleteOrder.mockRejectedValue(error);
 
-      await expect(controller.deleteOrder(0)).rejects.toThrow(HttpException);
-      await expect(controller.deleteOrder(0)).rejects.toThrow(
+      await expect(controller.deleteOrder(0, mockReq)).rejects.toThrow(
+        HttpException,
+      );
+      await expect(controller.deleteOrder(0, mockReq)).rejects.toThrow(
         'Invalid Order ID',
       );
     });
@@ -494,8 +564,10 @@ describe('OrdersController', () => {
       );
       mockOrdersService.deleteOrder.mockRejectedValue(error);
 
-      await expect(controller.deleteOrder(999)).rejects.toThrow(HttpException);
-      await expect(controller.deleteOrder(999)).rejects.toThrow(
+      await expect(controller.deleteOrder(999, mockReq)).rejects.toThrow(
+        HttpException,
+      );
+      await expect(controller.deleteOrder(999, mockReq)).rejects.toThrow(
         "The order you're trying to delete does not exist",
       );
     });
@@ -507,8 +579,10 @@ describe('OrdersController', () => {
       );
       mockOrdersService.deleteOrder.mockRejectedValue(error);
 
-      await expect(controller.deleteOrder(1)).rejects.toThrow(HttpException);
-      await expect(controller.deleteOrder(1)).rejects.toThrow(
+      await expect(controller.deleteOrder(1, mockReq)).rejects.toThrow(
+        HttpException,
+      );
+      await expect(controller.deleteOrder(1, mockReq)).rejects.toThrow(
         'Database deletion failed',
       );
     });
@@ -518,7 +592,7 @@ describe('OrdersController', () => {
         new Error('Unexpected error'),
       );
 
-      await expect(controller.deleteOrder(1)).rejects.toThrow(
+      await expect(controller.deleteOrder(1, mockReq)).rejects.toThrow(
         'Unexpected error',
       );
     });
