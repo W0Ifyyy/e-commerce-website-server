@@ -53,10 +53,11 @@ export class OrdersService {
     }
   }
 
-  async getOrdersByUserId(userId: number){
+  async getOrdersByUserId(userId: number, req: Request){
     if(!userId || userId <= 0){
       throw new HttpException("Invalid user ID", HttpStatus.BAD_REQUEST);
     }
+    canAccessUser(req, userId);
     try {
       let orders = await this.orderRepository.find(
         { where: { user: { id: userId }}, relations: ['user', 'items', 'items.product'] }
@@ -229,7 +230,6 @@ export class OrdersService {
           HttpStatus.NOT_FOUND,
         );
       canAccessUser(req, order.user.id);
-      
       let result = await this.orderRepository.delete(id);
       if (result.affected === 0)
         throw new HttpException(

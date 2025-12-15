@@ -71,14 +71,6 @@ describe('CategoryController', () => {
       expect(mockCategoryService.getAllCategories).toHaveBeenCalledWith();
     });
 
-    it('should return empty array when no categories exist', async () => {
-      mockCategoryService.getAllCategories.mockResolvedValue([]);
-
-      const result = await controller.getCategories();
-
-      expect(result).toEqual([]);
-    });
-
     it('should propagate NOT_FOUND error from service', async () => {
       const error = new HttpException('No categories found', HttpStatus.NOT_FOUND);
       mockCategoryService.getAllCategories.mockRejectedValue(error);

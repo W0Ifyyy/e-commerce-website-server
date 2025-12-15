@@ -16,6 +16,12 @@ export function canAccessUser(req: Request & { user?: any }, userId?: number) {
 }
 
 export function canAccess(req: Request & { user?: any }) {
+  if (!req.user) {
+    throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
+  }
   const role = req.user?.role;
-  return role === "admin";
+  if (role !== 'admin') {
+    throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
+  }
 }
+

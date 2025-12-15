@@ -13,6 +13,7 @@ import { CategoryService } from './category.service';
 import { CreateCategoryDto } from './dtos/CreateCategoryDto';
 import { UpdateCategoryDto } from './dtos/UpdateCategoryDto';
 import { Public } from 'utils/publicDecorator';
+import { Roles } from 'utils/rolesDecorator';
 
 @Controller('category')
 export class CategoryController {
@@ -39,16 +40,19 @@ export class CategoryController {
     return this.categoryService.getCategoryById(id);
   }
 
-  @Public()
+  @Roles('admin')
   @Post()
   @HttpCode(201)
   createCategory(@Body() createCategoryParams: CreateCategoryDto) {
     return this.categoryService.createCategory(createCategoryParams);
   }
+  @Roles('admin')
   @Delete(':id')
   deleteCategory(@Param('id', ParseIntPipe) id: number) {
     return this.categoryService.deleteCategory(id);
   }
+  
+  @Roles('admin')
   @Put(':id')
   updateCategory(
     @Param('id', ParseIntPipe) id: number,

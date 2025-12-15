@@ -210,14 +210,14 @@ describe('CategoryService', () => {
     });
 
     it('should throw BAD_REQUEST for null id', async () => {
-      await expect(service.getCategoryById(null)).rejects.toThrow(
+      await expect(service.getCategoryById(null as any)).rejects.toThrow(
         new HttpException('Invalid category ID', HttpStatus.BAD_REQUEST),
       );
       expect(mockCategoryRepository.findOne).not.toHaveBeenCalled();
     });
 
     it('should throw BAD_REQUEST for undefined id', async () => {
-      await expect(service.getCategoryById(undefined)).rejects.toThrow(
+      await expect(service.getCategoryById(undefined as any)).rejects.toThrow(
         new HttpException('Invalid category ID', HttpStatus.BAD_REQUEST),
       );
       expect(mockCategoryRepository.findOne).not.toHaveBeenCalled();
@@ -388,13 +388,13 @@ describe('CategoryService', () => {
     });
 
     it('should throw BAD_REQUEST for null id', async () => {
-      await expect(service.deleteCategory(null)).rejects.toThrow(
+      await expect(service.deleteCategory(null as any)).rejects.toThrow(
         new HttpException('Invalid category ID', HttpStatus.BAD_REQUEST),
       );
     });
 
     it('should throw BAD_REQUEST for undefined id', async () => {
-      await expect(service.deleteCategory(undefined)).rejects.toThrow(
+      await expect(service.deleteCategory(undefined as any)).rejects.toThrow(
         new HttpException('Invalid category ID', HttpStatus.BAD_REQUEST),
       );
     });
@@ -488,7 +488,7 @@ describe('CategoryService', () => {
 
     it('should throw BAD_REQUEST for null id', async () => {
       await expect(
-        service.updateCategory(null, updateCategoryParams),
+        service.updateCategory(null as any, updateCategoryParams),
       ).rejects.toThrow(
         new HttpException('Invalid category ID', HttpStatus.BAD_REQUEST),
       );
@@ -496,7 +496,7 @@ describe('CategoryService', () => {
 
     it('should throw BAD_REQUEST for undefined id', async () => {
       await expect(
-        service.updateCategory(undefined, updateCategoryParams),
+        service.updateCategory(undefined as any, updateCategoryParams),
       ).rejects.toThrow(
         new HttpException('Invalid category ID', HttpStatus.BAD_REQUEST),
       );

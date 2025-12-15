@@ -427,6 +427,7 @@ describe('UserService', () => {
         user.id,
         expect.objectContaining({
           verifyToken: 'hashedToken',
+          verifyTokenExpiry: expect.any(Date),
         }),
       );
       expect(sendMail).toHaveBeenCalled();
@@ -448,6 +449,7 @@ describe('UserService', () => {
         user.id,
         expect.objectContaining({
           forgetPasswordToken: 'resetHashed',
+          forgetPasswordTokenExpiry: expect.any(Date),
         }),
       );
       expect(sendMail).toHaveBeenCalled();
@@ -461,9 +463,7 @@ describe('UserService', () => {
         new Error('hash fail'),
       );
 
-      await expect(
-        service.emailActions(user.email, 'VERIFY'),
-      ).rejects.toThrow(
+      await expect(service.emailActions(user.email, 'VERIFY')).rejects.toThrow(
         /An error occured while verifying email: hash fail/,
       );
     });

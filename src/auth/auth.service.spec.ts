@@ -175,7 +175,7 @@ describe('AuthService', () => {
 
       expect(mockJwtService.sign).toHaveBeenNthCalledWith(
         1,
-        { username: 'testuser', sub: 1 },
+        { username: 'testuser', sub: 1, role: 'user' },
         { expiresIn: '15m' },
       );
     });
@@ -185,7 +185,7 @@ describe('AuthService', () => {
 
       expect(mockJwtService.sign).toHaveBeenNthCalledWith(
         2,
-        { username: 'testuser', sub: 1 },
+        { username: 'testuser', sub: 1, role: 'user' },
         { expiresIn: '7d' },
       );
     });
@@ -219,12 +219,12 @@ describe('AuthService', () => {
 
     it('should handle different user IDs', async () => {
       const differentUser = { id: 99, name: 'otheruser' };
-      
+
       await service.login(differentUser);
 
       expect(mockJwtService.sign).toHaveBeenNthCalledWith(
         1,
-        { username: 'otheruser', sub: 99 },
+        { username: 'otheruser', sub: 99, role: undefined },
         { expiresIn: '15m' },
       );
       expect(mockUserService.updateRefreshToken).toHaveBeenCalledWith(

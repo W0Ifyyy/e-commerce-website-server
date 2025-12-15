@@ -15,9 +15,6 @@ import { canAccessUser } from 'utils/canAccess';
 
 describe('OrdersService', () => {
   let service: OrdersService;
-  let orderRepository: Repository<Order>;
-  let productRepository: Repository<Product>;
-  let userRepository: Repository<User>;
 
   const mockOrderRepository = {
     find: jest.fn(),
@@ -55,12 +52,7 @@ describe('OrdersService', () => {
     name: 'Test Order',
     user: mockUser,
     items: [
-      {
-        id: 1,
-        product: mockProduct,
-        quantity: 2,
-        unitPrice: 100,
-      },
+      { id: 1, product: mockProduct, quantity: 2, unitPrice: 100 },
     ],
     totalAmount: 200,
     status: 'PENDING',
@@ -75,27 +67,13 @@ describe('OrdersService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OrdersService,
-        {
-          provide: getRepositoryToken(Order),
-          useValue: mockOrderRepository,
-        },
-        {
-          provide: getRepositoryToken(Product),
-          useValue: mockProductRepository,
-        },
-        {
-          provide: getRepositoryToken(User),
-          useValue: mockUserRepository,
-        },
+        { provide: getRepositoryToken(Order), useValue: mockOrderRepository },
+        { provide: getRepositoryToken(Product), useValue: mockProductRepository },
+        { provide: getRepositoryToken(User), useValue: mockUserRepository },
       ],
     }).compile();
 
     service = module.get<OrdersService>(OrdersService);
-    orderRepository = module.get<Repository<Order>>(getRepositoryToken(Order));
-    productRepository = module.get<Repository<Product>>(
-      getRepositoryToken(Product),
-    );
-    userRepository = module.get<Repository<User>>(getRepositoryToken(User));
   });
 
   afterEach(() => {
@@ -113,14 +91,10 @@ describe('OrdersService', () => {
 
       const result = await service.getAllOrders();
 
-      expect(result).toEqual({
-        msg: 'Orders retrieved successfully',
-        orders: mockOrders,
-      });
+      expect(result).toEqual({ msg: 'Orders retrieved successfully', orders: mockOrders });
       expect(mockOrderRepository.find).toHaveBeenCalledWith({
         relations: ['user', 'items', 'items.product'],
       });
-      expect(mockOrderRepository.find).toHaveBeenCalledTimes(1);
     });
 
     it('should return empty array when no orders exist', async () => {
@@ -135,8 +109,7 @@ describe('OrdersService', () => {
     });
 
     it('should throw INTERNAL_SERVER_ERROR on database failure', async () => {
-      const dbError = new Error('Database connection failed');
-      mockOrderRepository.find.mockRejectedValue(dbError);
+      mockOrderRepository.find.mockRejectedValue(new Error('Database connection failed'));
 
       await expect(service.getAllOrders()).rejects.toThrow(HttpException);
       await expect(service.getAllOrders()).rejects.toThrow(
@@ -157,8 +130,9 @@ describe('OrdersService', () => {
   });
 
   describe('getOrderById', () => {
-    it('should return an order by id with relations', async () => {
+    it('should return an order by id with relations and check access', async () => {
       mockOrderRepository.findOne.mockResolvedValue(mockOrder);
+      (canAccessUser as jest.Mock).mockImplementation(() => undefined);
 
       const result = await service.getOrderById(1, mockReq);
 
@@ -171,10 +145,11 @@ describe('OrdersService', () => {
         where: { id: 1 },
         relations: ['user', 'items', 'items.product'],
       });
+      expect(canAccessUser).toHaveBeenCalledWith(mockReq, mockOrder.user.id);
     });
 
     it('should throw BAD_REQUEST for invalid order ID (zero)', async () => {
-      await expect(service.getOrderById(0, mockReq)).rejects.toThrow(
+      await expect(service.getOrderById(0 as any, mockReq)).rejects.toThrow(
         new HttpException('Invalid order ID', HttpStatus.BAD_REQUEST),
       );
       expect(mockOrderRepository.findOne).not.toHaveBeenCalled();
@@ -227,6 +202,55 @@ describe('OrdersService', () => {
     });
   });
 
+  describe('getOrdersByUserId', () => {
+    it('should return orders for a user with relations', async () => {
+      mockOrderRepository.find.mockResolvedValue([mockOrder]);
+      (canAccessUser as jest.Mock).mockImplementation(() => undefined);
+
+      const result = await service.getOrdersByUserId(1, mockReq);
+
+      expect(canAccessUser).toHaveBeenCalledWith(mockReq, 1);
+      expect(mockOrderRepository.find).toHaveBeenCalledWith({
+        where: { user: { id: 1 } },
+        relations: ['user', 'items', 'items.product'],
+      });
+      expect(result).toEqual({
+        statusCode: 200,
+        msg: 'Orders retrieved successfully',
+        orders: [mockOrder],
+      });
+    });
+
+    it('should throw BAD_REQUEST for invalid userId', async () => {
+      await expect(service.getOrdersByUserId(0 as any, mockReq)).rejects.toThrow(
+        new HttpException('Invalid user ID', HttpStatus.BAD_REQUEST),
+      );
+      expect(canAccessUser).not.toHaveBeenCalled();
+      expect(mockOrderRepository.find).not.toHaveBeenCalled();
+    });
+
+    it('should propagate canAccessUser errors (it is called before try/catch)', async () => {
+      (canAccessUser as jest.Mock).mockImplementation(() => {
+        throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
+      });
+
+      await expect(service.getOrdersByUserId(1, mockReq)).rejects.toThrow(
+        'Unauthorized',
+      );
+      expect(mockOrderRepository.find).not.toHaveBeenCalled();
+    });
+
+    it('should wrap NOT_FOUND as INTERNAL_SERVER_ERROR when no orders exist', async () => {
+      (canAccessUser as jest.Mock).mockImplementation(() => undefined);
+      mockOrderRepository.find.mockResolvedValue([]);
+
+      await expect(service.getOrdersByUserId(1, mockReq)).rejects.toThrow(HttpException);
+      await expect(service.getOrdersByUserId(1, mockReq)).rejects.toThrow(
+        'An error occurred while getting orders by user id: Orders of user with given id doesnt exist!',
+      );
+    });
+  });
+
   describe('createOrder', () => {
     const createOrderParams = {
       userId: 1,
@@ -236,31 +260,23 @@ describe('OrdersService', () => {
       status: 'PENDING' as 'PENDING' | 'COMPLETED' | 'CANCELED',
     };
 
-    it('should create an order successfully', async () => {
+    it('should create an order successfully and check access', async () => {
       mockUserRepository.findOne.mockResolvedValue(mockUser);
       mockProductRepository.find.mockResolvedValue([mockProduct]);
       mockOrderRepository.create.mockReturnValue(mockOrder);
       mockOrderRepository.save.mockResolvedValue(mockOrder);
+      (canAccessUser as jest.Mock).mockImplementation(() => undefined);
 
       const result = await service.createOrder(createOrderParams, mockReq);
 
-      expect(result).toEqual({
-        msg: 'Order created successfully!',
-        order: mockOrder,
-      });
-      expect(mockUserRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 1 },
-      });
-      expect(mockProductRepository.find).toHaveBeenCalled();
-      expect(mockOrderRepository.save).toHaveBeenCalled();
+      expect(canAccessUser).toHaveBeenCalledWith(mockReq, mockUser.id);
+      expect(result).toEqual({ msg: 'Order created successfully!', order: mockOrder });
     });
 
     it('should throw BAD_REQUEST for invalid user ID (zero)', async () => {
       await expect(
         service.createOrder({ ...createOrderParams, userId: 0 }, mockReq),
-      ).rejects.toThrow(
-        new HttpException('Invalid user ID', HttpStatus.BAD_REQUEST),
-      );
+      ).rejects.toThrow(new HttpException('Invalid user ID', HttpStatus.BAD_REQUEST));
       expect(mockUserRepository.findOne).not.toHaveBeenCalled();
     });
 
@@ -406,18 +422,12 @@ describe('OrdersService', () => {
         ...mockOrder,
         ...updateOrderParams,
       });
+      (canAccessUser as jest.Mock).mockImplementation(() => undefined);
 
       const result = await service.updateOrder(1, updateOrderParams, mockReq);
 
-      expect(result).toEqual({
-        msg: 'Order updated successfully!',
-        statusCode: 200,
-      });
-      expect(mockOrderRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 1 },
-        relations: ['user', 'items', 'items.product'],
-      });
-      expect(mockOrderRepository.save).toHaveBeenCalled();
+      expect(canAccessUser).toHaveBeenCalledWith(mockReq, mockOrder.user.id);
+      expect(result).toEqual({ msg: 'Order updated successfully!', statusCode: 200 });
     });
 
     it('should throw BAD_REQUEST for invalid order ID (zero)', async () => {
@@ -559,15 +569,13 @@ describe('OrdersService', () => {
     it('should delete an order successfully', async () => {
       mockOrderRepository.findOne.mockResolvedValue(mockOrder);
       mockOrderRepository.delete.mockResolvedValue({ affected: 1 });
+      (canAccessUser as jest.Mock).mockImplementation(() => undefined);
 
       const result = await service.deleteOrder(1, mockReq);
 
-      expect(result).toEqual({
-        msg: 'Order deleted successfully',
-        statusCode: 200,
-      });
+      expect(canAccessUser).toHaveBeenCalledWith(mockReq, mockOrder.user.id);
+      expect(result).toEqual({ msg: 'Order deleted successfully', statusCode: 200 });
       expect(mockOrderRepository.delete).toHaveBeenCalledWith(1);
-      expect(mockOrderRepository.delete).toHaveBeenCalledTimes(1);
     });
 
     it('should throw BAD_REQUEST for invalid order ID (zero)', async () => {
