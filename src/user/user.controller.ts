@@ -16,25 +16,58 @@ import { UserService } from './user.service';
 import { UpdateUserDto } from 'src/user/dtos/UpdateUserDto';
 import { canAccessUser } from 'utils/canAccess';
 import { Roles } from 'utils/rolesDecorator';
+import { Public } from 'utils/publicDecorator';
 
 @Controller('user')
 export class UserController {
   constructor(private userService: UserService) {}
 
-  @Roles("admin")
+  @Roles('admin', 'user')
+  @Post('/verifyEmail')
+  async emailActions(
+    @Req() req: any,
+    @Body() body: { emailType: string; email?: string },
+  ) {
+    const userId = req?.user?.userId;
+    canAccessUser(req, userId);
+
+    const user = await this.userService.getUserById(userId);
+
+    // Non-admin: force target email to own email (ignore body.email)
+    // Admin: can send to provided email; if missing, defaults to own.
+    const targetEmail = user.role === 'admin'
+      ? (body.email ?? user.email)
+      : user.email;
+
+    return this.userService.emailActions(targetEmail, body.emailType);
+  }
+
+  @Public()
+  @Get('/verifyEmail/confirm')
+  verifyEmail(@Query('token') token: string) {
+    return this.userService.verifyEmail(token);
+  }
+
+  @Public()
+  @Post('/verifyEmail/confirm')
+  verifyEmailPost(@Body() body: { token: string }) {
+    return this.userService.verifyEmail(body?.token);
+  }
+
+  @Roles('admin')
   @Get()
   getUsers(@Req() req: any) {
     return this.userService.getAllUsers();
   }
 
-  @Roles("admin", "user")
+  @Roles('admin', 'user')
   @Get(':id')
   getUserById(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
     canAccessUser(req, id);
     return this.userService.getUserById(id);
   }
 
-  @Roles("admin", "user")
+  @Roles('admin', 'user')
   @Put(':id')
   updateUser(
     @Param('id', ParseIntPipe) id: number,
@@ -45,14 +78,14 @@ export class UserController {
     return this.userService.updateUser(id, updateUserDto);
   }
 
-  @Roles("admin", "user")
+  @Roles('admin', 'user')
   @Delete(':id')
   deleteUserById(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
     canAccessUser(req, id);
     return this.userService.deleteUserById(id);
   }
 
-  @Roles("admin", "user")
+  @Roles('admin', 'user')
   @Put('/changePassword/:id')
   changePassword(
     @Req() req: any,
@@ -65,15 +98,5 @@ export class UserController {
       changePasswordDto.oldPassword,
       changePasswordDto.newPassword,
     );
-  }
-  //email section is not done yet
-  @Get('/verifyEmail')
-  emailActions(@Req() req: any, @Query('email') email: string, @Query('emailType') emailType: string) {
-    canAccessUser(req);
-    return this.userService.emailActions(email, emailType);
-  }
-  @Get('/verifyEmail/confirm')
-  verifyEmail(@Query('token') token: string) {
-    return this.userService.verifyEmail(token);
   }
 }

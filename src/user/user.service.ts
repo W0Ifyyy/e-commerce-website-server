@@ -3,16 +3,17 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/typeorm/entities/User';
 import { Repository } from 'typeorm';
 import { comparePassword, hashPassword } from 'utils/creatingPassword';
-import { hashToken } from 'utils/hashingTokens';
 import { ICreateUser, IUpdateUser } from 'utils/Interfaces';
-import nodemailer from 'nodemailer';
-import { from } from 'rxjs';
+import * as nodemailer from 'nodemailer';
+import { MailtrapTransport } from 'mailtrap';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class UserService {
   constructor(
     @InjectRepository(User) private usersRepository: Repository<User>,
   ) {}
+
   async getAllUsers() {
     let users = await this.usersRepository.find({ relations: ['orders'] });
     return users;
@@ -170,44 +171,143 @@ export class UserService {
       );
     }
   }
-  async emailActions(email: string,  emailType: string) {
-    const user = await this.usersRepository.findOne({ where: { email } });
-      try {
-        const hashedToken = await hashToken(user.id.toString());
-        if (emailType === 'VERIFY') {
-          await this.usersRepository.update(user.id, {
-          verifyToken: hashedToken,
-          verifyTokenExpiry: new Date(Date.now() + 3600000), // 1 hour from now
+
+  // In-memory cooldown (per server instance)
+  private readonly emailCooldownMs = 60_000; // 60s
+  private readonly emailCooldown = new Map<string, number>();
+
+  private sha256Hex(input: string): string {
+    return crypto.createHash('sha256').update(input).digest('hex');
+  }
+
+  private isOnCooldown(key: string): boolean {
+    const last = this.emailCooldown.get(key);
+    return typeof last === 'number' && Date.now() - last < this.emailCooldownMs;
+  }
+
+  private touchCooldown(key: string) {
+    this.emailCooldown.set(key, Date.now());
+  }
+
+  async emailActions(email: string, emailType: string) {
+    const normalizedType = (emailType ?? '').toUpperCase().trim();
+    if (!['VERIFY', 'RESET'].includes(normalizedType)) {
+      throw new HttpException('Invalid emailType', HttpStatus.BAD_REQUEST);
+    }
+
+    // Generic response to prevent email enumeration
+    const generic = {
+      message: 'If the account exists, an email has been sent.',
+    };
+
+    const normalizedEmail = (email ?? '').trim().toLowerCase();
+    if (!normalizedEmail) return generic;
+
+    const cooldownKey = `${normalizedType}:${normalizedEmail}`;
+    if (this.isOnCooldown(cooldownKey)) {
+      // Same response to avoid signal; still prevents spamming
+      return generic;
+    }
+
+    const user = await this.usersRepository.findOne({
+      where: { email: normalizedEmail },
+    });
+
+    // If user doesn't exist -> do NOT reveal it
+    if (!user) {
+      this.touchCooldown(cooldownKey);
+      return generic;
+    }
+
+    try {
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      const tokenHash = this.sha256Hex(rawToken);
+      const expiry = new Date(Date.now() + 3600000); // 1 hour
+
+      if (normalizedType === 'VERIFY') {
+        await this.usersRepository.update(user.id, {
+          verifyToken: tokenHash,
+          verifyTokenExpiry: expiry,
         });
-        } else if(emailType === "RESET"){
-          await this.usersRepository.update(user.id, {
-          forgetPasswordToken: hashedToken,
-          forgetPasswordTokenExpiry: new Date(Date.now() + 3600000), // 1 hour from now
+      } else {
+        await this.usersRepository.update(user.id, {
+          forgetPasswordToken: tokenHash,
+          forgetPasswordTokenExpiry: expiry,
         });
-        }
-      const transport = nodemailer.createTransport({
-        host: "sandbox.smtp.mailtrap.io",
-        port: 2525,
-        auth: {
-          user: process.env.NODEMAILER_USER,
-          pass: process.env.NODEMAILER_PASS
-        }
+      }
+
+      const token = process.env.MAILTRAP_TOKEN;
+      const testInboxIdRaw = process.env.MAILTRAP_TEST_INBOX_ID;
+
+      if (!token) throw new Error('MAILTRAP_TOKEN is not set');
+      if (!testInboxIdRaw) throw new Error('MAILTRAP_TEST_INBOX_ID is not set');
+
+      const testInboxId = Number(testInboxIdRaw);
+      if (!Number.isFinite(testInboxId)) {
+        throw new Error('MAILTRAP_TEST_INBOX_ID must be a number');
+      }
+
+      const transport = nodemailer.createTransport(
+        MailtrapTransport({
+          token,
+          sandbox: true,
+          testInboxId,
+        }),
+      );
+
+      const webBase =
+        process.env.NEXT_PUBLIC_BASE_URL?.trim() || 'http://localhost:3000';
+
+      const confirmUrl =
+        normalizedType === 'VERIFY'
+          ? `${webBase}/verifyEmail?token=${encodeURIComponent(rawToken)}`
+          : `${webBase}/resetPassword?token=${encodeURIComponent(rawToken)}`;
+
+      await transport.sendMail({
+        from: {
+          address: process.env.MAIL_FROM_ADDRESS ?? 'hello@example.com',
+          name: process.env.MAIL_FROM_NAME ?? 'Mailtrap Test',
+        },
+        to: [normalizedEmail],
+        subject:
+          normalizedType === 'VERIFY' ? 'Verify your email' : 'Reset your password',
+        text:
+          normalizedType === 'VERIFY'
+            ? `Verify your email: ${confirmUrl}`
+            : `Reset your password: ${confirmUrl}`,
+        category: 'Integration Test',
       });
 
-      const mailOptions = {
-          from: "test@gmail.com",
-          to: email,
-          subject: emailType === "VERIFY" ? "Verify your email" : "Reset your password",
-          html: `<p>Click <a href="${process.env.NEXT_PUBLIC_BASE_UR}/verifyemail?token=${hashedToken}">here</a> to ${emailType === "VERIFY" ? "verify your email" : "reset your password"}</p>`
-      };
-      const mailResponse = await transport.sendMail(mailOptions);
-      return mailResponse;
-      } catch (error) {
-        throw new HttpException(`An error occured while verifying email: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
-      }
+      this.touchCooldown(cooldownKey);
+      return generic;
+    } catch (error: any) {
+      throw new HttpException(
+        'An error occured while sending email',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
-    async verifyEmail(token:string){
-      
+  }
+
+  async verifyEmail(token: string) {
+    const raw = (token ?? '').trim();
+    if (!raw) throw new HttpException('Missing token', HttpStatus.BAD_REQUEST);
+
+    const tokenHash = this.sha256Hex(raw);
+
+    const user = await this.usersRepository.findOne({ where: { verifyToken: tokenHash } });
+    if (!user) throw new HttpException('Invalid token', HttpStatus.UNAUTHORIZED);
+
+    if (!user.verifyTokenExpiry || user.verifyTokenExpiry.getTime() < Date.now()) {
+      throw new HttpException('Token expired', HttpStatus.UNAUTHORIZED);
     }
+
+    await this.usersRepository.update(user.id, {
+      isEmailVerified: true,
+      verifyToken: null,
+      verifyTokenExpiry: null,
+    });
+
+    return { message: 'Email verified' };
+  }
 }
 

@@ -488,6 +488,52 @@ describe('AuthController', () => {
       expect(mockAuthService.logout).toHaveBeenCalledWith(42);
     });
 
+    it('should prefer req.user.userId over sub/id', async () => {
+      mockRequest.user = { userId: 123, sub: 999, id: 555 };
+
+      const result = await controller.logout(
+        mockRequest as Request,
+        mockResponse as Response,
+      );
+
+      expect(result).toEqual(mockLogoutResponse);
+      expect(mockAuthService.logout).toHaveBeenCalledWith(123);
+    });
+
+    it('should use req.user.id when userId and sub are missing', async () => {
+      mockRequest.user = { id: 77, email: 'a@b.com' };
+
+      const result = await controller.logout(
+        mockRequest as Request,
+        mockResponse as Response,
+      );
+
+      expect(result).toEqual(mockLogoutResponse);
+      expect(mockAuthService.logout).toHaveBeenCalledWith(77);
+    });
+
+    it('should throw UnauthorizedException when req.user is missing, but still clear cookies', () => {
+      const req = {} as unknown as Request;
+
+      expect(() => controller.logout(req, mockResponse as Response)).toThrow(
+        UnauthorizedException,
+      );
+
+      expect(mockResponse.clearCookie).toHaveBeenCalledTimes(3);
+      expect(mockAuthService.logout).not.toHaveBeenCalled();
+    });
+
+    it('should throw UnauthorizedException when extracted userId is falsy (0), but still clear cookies', () => {
+      mockRequest.user = { userId: 0, sub: 0, id: 0 };
+
+      expect(() =>
+        controller.logout(mockRequest as Request, mockResponse as Response),
+      ).toThrow(UnauthorizedException);
+
+      expect(mockResponse.clearCookie).toHaveBeenCalledTimes(3);
+      expect(mockAuthService.logout).not.toHaveBeenCalled();
+    });
+
     it('should clear cookies before calling logout service', async () => {
       const callOrder: string[] = [];
 
