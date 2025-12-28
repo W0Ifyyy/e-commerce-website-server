@@ -309,5 +309,33 @@ export class UserService {
 
     return { message: 'Email verified' };
   }
-}
 
+  async confirmResetPassword(token: string, newPassword: string){
+    const raw = (token ?? '').trim();
+    if(!raw) throw new HttpException("Missing token",  HttpStatus.BAD_REQUEST);
+
+    const passwordTrimmed = (newPassword ?? '').trim();
+    if(!passwordTrimmed){
+      throw new HttpException('Missing new password', HttpStatus.BAD_REQUEST);
+    }
+    const tokenHash = this.sha256Hex(raw);
+
+    const user = await this.usersRepository.findOne({where: { forgetPasswordToken: tokenHash}})
+    
+    if(!user) throw new HttpException('Invalid token', HttpStatus.UNAUTHORIZED);
+
+    if(!user.forgetPasswordTokenExpiry || user.forgetPasswordTokenExpiry.getTime() < Date.now()){
+      throw new HttpException('Token expired', HttpStatus.UNAUTHORIZED);
+    }
+
+    const hashedPassword = await hashPassword(passwordTrimmed);
+
+    await this.usersRepository.update(user.id, {
+      password: hashedPassword,
+      forgetPasswordToken: null,
+      forgetPasswordTokenExpiry: null,
+    })
+    return { message: 'Password has been reset' };
+  }
+
+}

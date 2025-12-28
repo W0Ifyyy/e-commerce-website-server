@@ -17,10 +17,35 @@ import { UpdateUserDto } from 'src/user/dtos/UpdateUserDto';
 import { canAccessUser } from 'utils/canAccess';
 import { Roles } from 'utils/rolesDecorator';
 import { Public } from 'utils/publicDecorator';
+import { RequestPasswordDto } from './dtos/RequestPasswordResetDto';
+import { TokenDto } from './dtos/TokenDto';
 
 @Controller('user')
 export class UserController {
   constructor(private userService: UserService) {}
+  @Public()
+  @Get('/verifyEmail/confirm')
+  verifyEmail(@Query('token') token: string) {
+    return this.userService.verifyEmail(token);
+  }
+
+  @Public()
+  @Post('/verifyEmail/confirm')
+  verifyEmailPost(@Body() req: TokenDto) {
+    return this.userService.verifyEmail(req?.token);
+  }
+
+  @Public()
+  @Post("/resetPassword/request")
+  resetPasswordRequest(@Body() req: RequestPasswordDto){
+    return this.userService.emailActions(req.email, 'RESET');
+  }
+
+  @Public()
+  @Post("/resetPassword/confirm")
+  resetPasswordConfirm(@Body() req: {token: string, newPassword: string }){
+    return this.userService.confirmResetPassword(req?.token, req?.newPassword);
+  }
 
   @Roles('admin', 'user')
   @Post('/verifyEmail')
@@ -28,6 +53,7 @@ export class UserController {
     @Req() req: any,
     @Body() body: { emailType: string; email?: string },
   ) {
+    console.log("neck hurt")
     const userId = req?.user?.userId;
     canAccessUser(req, userId);
 
@@ -40,18 +66,6 @@ export class UserController {
       : user.email;
 
     return this.userService.emailActions(targetEmail, body.emailType);
-  }
-
-  @Public()
-  @Get('/verifyEmail/confirm')
-  verifyEmail(@Query('token') token: string) {
-    return this.userService.verifyEmail(token);
-  }
-
-  @Public()
-  @Post('/verifyEmail/confirm')
-  verifyEmailPost(@Body() body: { token: string }) {
-    return this.userService.verifyEmail(body?.token);
   }
 
   @Roles('admin')

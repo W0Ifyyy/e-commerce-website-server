@@ -21,6 +21,7 @@ describe('UserController', () => {
     changePassword: jest.fn(),
     emailActions: jest.fn(),
     verifyEmail: jest.fn(),
+    confirmResetPassword: jest.fn(),
   };
 
   const mockReq: any = {
@@ -59,7 +60,7 @@ describe('UserController', () => {
 
       const result = await controller.getUsers(mockReq);
 
-      // getUsers no longer calls canAccessUser
+      // getUsers does not call canAccessUser
       expect(canAccessUser).not.toHaveBeenCalled();
       expect(result).toEqual(mockUsers);
       expect(mockUserService.getAllUsers).toHaveBeenCalledTimes(1);
@@ -360,38 +361,94 @@ describe('UserController', () => {
     });
   });
 
-  describe('emailActions', () => {
-    it('should call canAccessUser(req) and delegate to service.emailActions', async () => {
+  describe('emailActions (POST /user/verifyEmail)', () => {
+    it('non-admin: should ignore body.email and send to own email', async () => {
+      mockUserService.getUserById.mockResolvedValue({
+        id: 1,
+        email: 'own@test.com',
+        role: 'user',
+      });
       mockUserService.emailActions.mockResolvedValue('mail-ok');
 
-      const result = await controller.emailActions(
-        mockReq,
-        'user@test.com',
-        'VERIFY',
-      );
+      const result = await controller.emailActions(mockReq, {
+        emailType: 'VERIFY',
+        email: 'someoneelse@test.com',
+      });
 
-      expect(canAccessUser).toHaveBeenCalledWith(mockReq);
+      expect(canAccessUser).toHaveBeenCalledWith(mockReq, 1);
+      expect(mockUserService.getUserById).toHaveBeenCalledWith(1);
+
+      // because fetched user.role !== admin
       expect(mockUserService.emailActions).toHaveBeenCalledWith(
-        'user@test.com',
+        'own@test.com',
         'VERIFY',
       );
       expect(result).toBe('mail-ok');
     });
 
+    it('admin: should send to body.email when provided', async () => {
+      mockUserService.getUserById.mockResolvedValue({
+        id: 1,
+        email: 'admin@test.com',
+        role: 'admin',
+      });
+      mockUserService.emailActions.mockResolvedValue('mail-ok');
+
+      const result = await controller.emailActions(mockReq, {
+        emailType: 'VERIFY',
+        email: 'target@test.com',
+      });
+
+      expect(canAccessUser).toHaveBeenCalledWith(mockReq, 1);
+      expect(mockUserService.getUserById).toHaveBeenCalledWith(1);
+      expect(mockUserService.emailActions).toHaveBeenCalledWith(
+        'target@test.com',
+        'VERIFY',
+      );
+      expect(result).toBe('mail-ok');
+    });
+
+    it('admin: should default to own email when body.email is missing', async () => {
+      mockUserService.getUserById.mockResolvedValue({
+        id: 1,
+        email: 'admin@test.com',
+        role: 'admin',
+      });
+      mockUserService.emailActions.mockResolvedValue('mail-ok');
+
+      const result = await controller.emailActions(mockReq, {
+        emailType: 'RESET',
+      });
+
+      expect(canAccessUser).toHaveBeenCalledWith(mockReq, 1);
+      expect(mockUserService.getUserById).toHaveBeenCalledWith(1);
+      expect(mockUserService.emailActions).toHaveBeenCalledWith(
+        'admin@test.com',
+        'RESET',
+      );
+      expect(result).toBe('mail-ok');
+    });
+
     it('should propagate service errors', async () => {
+      mockUserService.getUserById.mockResolvedValue({
+        id: 1,
+        email: 'own@test.com',
+        role: 'user',
+      });
       mockUserService.emailActions.mockRejectedValue(
         new HttpException('Mail error', HttpStatus.INTERNAL_SERVER_ERROR),
       );
 
       await expect(
-        controller.emailActions(mockReq, 'user@test.com', 'VERIFY'),
+        controller.emailActions(mockReq, { emailType: 'VERIFY' }),
       ).rejects.toThrow('Mail error');
 
-      expect(canAccessUser).toHaveBeenCalledWith(mockReq);
+      expect(canAccessUser).toHaveBeenCalledWith(mockReq, 1);
+      expect(mockUserService.getUserById).toHaveBeenCalledWith(1);
     });
   });
 
-  describe('verifyEmail', () => {
+  describe('verifyEmail (GET /user/verifyEmail/confirm)', () => {
     it('should delegate to service.verifyEmail', async () => {
       mockUserService.verifyEmail.mockResolvedValue({ msg: 'ok' });
 
@@ -399,6 +456,42 @@ describe('UserController', () => {
 
       expect(mockUserService.verifyEmail).toHaveBeenCalledWith('token123');
       expect(result).toEqual({ msg: 'ok' });
+    });
+  });
+
+  describe('verifyEmailPost (POST /user/verifyEmail/confirm)', () => {
+    it('should delegate to service.verifyEmail with req.token', async () => {
+      mockUserService.verifyEmail.mockResolvedValue({ msg: 'ok' });
+
+      const result = await controller.verifyEmailPost({ token: 'token123' } as any);
+
+      expect(mockUserService.verifyEmail).toHaveBeenCalledWith('token123');
+      expect(result).toEqual({ msg: 'ok' });
+    });
+  });
+
+  describe('resetPasswordRequest (POST /user/resetPassword/request)', () => {
+    it('should delegate to service.emailActions(email, RESET)', async () => {
+      mockUserService.emailActions.mockResolvedValue({ message: 'ok' });
+
+      const result = await controller.resetPasswordRequest({ email: 'a@b.com' } as any);
+
+      expect(mockUserService.emailActions).toHaveBeenCalledWith('a@b.com', 'RESET');
+      expect(result).toEqual({ message: 'ok' });
+    });
+  });
+
+  describe('resetPasswordConfirm (POST /user/resetPassword/confirm)', () => {
+    it('should delegate to service.confirmResetPassword', async () => {
+      mockUserService.confirmResetPassword.mockResolvedValue({ message: 'Password has been reset' });
+
+      const result = await controller.resetPasswordConfirm({
+        token: 't1',
+        newPassword: 'newPass123',
+      });
+
+      expect(mockUserService.confirmResetPassword).toHaveBeenCalledWith('t1', 'newPass123');
+      expect(result).toEqual({ message: 'Password has been reset' });
     });
   });
 });

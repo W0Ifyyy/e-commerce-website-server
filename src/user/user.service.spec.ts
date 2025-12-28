@@ -5,23 +5,20 @@ import { User } from 'src/typeorm/entities/User';
 import { Repository } from 'typeorm';
 import { HttpException, HttpStatus } from '@nestjs/common';
 import * as creatingPassword from 'utils/creatingPassword';
-import * as hashingTokens from 'utils/hashingTokens';
-import nodemailer from 'nodemailer';
+import * as nodemailer from 'nodemailer';
+import * as nodeCrypto from 'crypto';
 
 jest.mock('utils/creatingPassword', () => ({
   comparePassword: jest.fn(),
   hashPassword: jest.fn(),
 }));
 
-jest.mock('utils/hashingTokens', () => ({
-  hashToken: jest.fn(),
+jest.mock('nodemailer', () => ({
+  createTransport: jest.fn(),
 }));
 
-jest.mock('nodemailer', () => ({
-  __esModule: true,
-  default: {
-    createTransport: jest.fn(),
-  },
+jest.mock('mailtrap', () => ({
+  MailtrapTransport: jest.fn((opts: any) => opts),
 }));
 
 describe('UserService', () => {
@@ -43,6 +40,13 @@ describe('UserService', () => {
       update: jest.fn(),
       delete: jest.fn(),
     };
+
+    process.env.MAILTRAP_TOKEN = 'test-token';
+    process.env.MAILTRAP_TEST_INBOX_ID = '123';
+    process.env.NEXT_PUBLIC_BASE_URL = 'http://localhost:3000';
+    process.env.MAIL_FROM_ADDRESS = 'hello@example.com';
+    process.env.MAIL_FROM_NAME = 'Mailtrap Test';
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UserService,
@@ -55,6 +59,7 @@ describe('UserService', () => {
 
     service = module.get<UserService>(UserService);
     repository = module.get<Repository<User>>(getRepositoryToken(User));
+
     jest.resetAllMocks();
   });
 
@@ -412,60 +417,289 @@ describe('UserService', () => {
   });
 
   describe('emailActions', () => {
-    it('should send verify email and update verify token', async () => {
+    it('should return generic response and (VERIFY) update token + send mail when user exists', async () => {
       const user = { id: 1, email: 'test@test.com' } as any;
       mockRepository.findOne.mockResolvedValue(user);
-      (hashingTokens.hashToken as jest.Mock).mockResolvedValue('hashedToken');
+
+      const bytes = Buffer.from(Array.from({ length: 32 }, (_, i) => i));
+      jest.spyOn(nodeCrypto, 'randomBytes').mockReturnValue(bytes as any);
+
+      const rawToken = bytes.toString('hex');
+      const expectedHash = nodeCrypto
+        .createHash('sha256')
+        .update(rawToken)
+        .digest('hex');
 
       const sendMail = jest.fn().mockResolvedValue('mail-ok');
-      (nodemailer as any).createTransport.mockReturnValue({ sendMail });
+      (nodemailer.createTransport as jest.Mock).mockReturnValue({ sendMail });
 
       const result = await service.emailActions(user.email, 'VERIFY');
 
-      expect(hashingTokens.hashToken).toHaveBeenCalledWith(user.id.toString());
+      expect(result).toEqual({
+        message: 'If the account exists, an email has been sent.',
+      });
+
+      expect(mockRepository.findOne).toHaveBeenCalledWith({
+        where: { email: 'test@test.com' },
+      });
+
       expect(mockRepository.update).toHaveBeenCalledWith(
         user.id,
         expect.objectContaining({
-          verifyToken: 'hashedToken',
+          verifyToken: expectedHash,
           verifyTokenExpiry: expect.any(Date),
         }),
       );
-      expect(sendMail).toHaveBeenCalled();
-      expect(result).toBe('mail-ok');
+
+      expect(sendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: ['test@test.com'],
+          subject: 'Verify your email',
+          text: expect.stringContaining(`/verifyEmail?token=${encodeURIComponent(rawToken)}`),
+        }),
+      );
     });
 
-    it('should send reset email and update reset token', async () => {
+    it('should return generic response and (RESET) update token + send mail when user exists', async () => {
       const user = { id: 2, email: 'reset@test.com' } as any;
       mockRepository.findOne.mockResolvedValue(user);
-      (hashingTokens.hashToken as jest.Mock).mockResolvedValue('resetHashed');
+
+      const bytes = Buffer.from(Array.from({ length: 32 }, (_, i) => 255 - i));
+      jest.spyOn(nodeCrypto, 'randomBytes').mockReturnValue(bytes as any);
+
+      const rawToken = bytes.toString('hex');
+      const expectedHash = nodeCrypto
+        .createHash('sha256')
+        .update(rawToken)
+        .digest('hex');
 
       const sendMail = jest.fn().mockResolvedValue('reset-ok');
-      (nodemailer as any).createTransport.mockReturnValue({ sendMail });
+      (nodemailer.createTransport as jest.Mock).mockReturnValue({ sendMail });
 
       const result = await service.emailActions(user.email, 'RESET');
 
-      expect(hashingTokens.hashToken).toHaveBeenCalledWith(user.id.toString());
+      expect(result).toEqual({
+        message: 'If the account exists, an email has been sent.',
+      });
+
       expect(mockRepository.update).toHaveBeenCalledWith(
         user.id,
         expect.objectContaining({
-          forgetPasswordToken: 'resetHashed',
+          forgetPasswordToken: expectedHash,
           forgetPasswordTokenExpiry: expect.any(Date),
         }),
       );
-      expect(sendMail).toHaveBeenCalled();
-      expect(result).toBe('reset-ok');
+
+      expect(sendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: ['reset@test.com'],
+          subject: 'Reset your password',
+          text: expect.stringContaining(`/resetPassword?token=${encodeURIComponent(rawToken)}`),
+        }),
+      );
     });
 
-    it('should wrap errors from hashToken/sendMail as INTERNAL_SERVER_ERROR', async () => {
-      const user = { id: 3, email: 'err@test.com' } as any;
-      mockRepository.findOne.mockResolvedValue(user);
-      (hashingTokens.hashToken as jest.Mock).mockRejectedValue(
-        new Error('hash fail'),
+    it('should throw BAD_REQUEST for invalid emailType', async () => {
+      await expect(service.emailActions('x@y.com', 'NOPE')).rejects.toThrow(
+        HttpException,
       );
+      await expect(service.emailActions('x@y.com', 'NOPE')).rejects.toMatchObject(
+        { status: HttpStatus.BAD_REQUEST },
+      );
+    });
+
+    it('should return generic response and do nothing when email is empty', async () => {
+      const result = await service.emailActions('', 'VERIFY');
+      expect(result).toEqual({
+        message: 'If the account exists, an email has been sent.',
+      });
+
+      expect(mockRepository.findOne).not.toHaveBeenCalled();
+      expect(mockRepository.update).not.toHaveBeenCalled();
+      expect(nodemailer.createTransport).not.toHaveBeenCalled();
+    });
+
+    it('should return generic response when user does not exist (no enumeration)', async () => {
+      mockRepository.findOne.mockResolvedValue(null);
+
+      const sendMail = jest.fn();
+      (nodemailer.createTransport as jest.Mock).mockReturnValue({ sendMail });
+
+      const result = await service.emailActions('missing@test.com', 'VERIFY');
+
+      expect(result).toEqual({
+        message: 'If the account exists, an email has been sent.',
+      });
+      expect(mockRepository.findOne).toHaveBeenCalled();
+      expect(mockRepository.update).not.toHaveBeenCalled();
+      expect(sendMail).not.toHaveBeenCalled();
+    });
+
+    it('should enforce cooldown: second call returns generic and skips DB/mail', async () => {
+      const user = { id: 1, email: 'cool@test.com' } as any;
+      mockRepository.findOne.mockResolvedValue(user);
+
+      const bytes = Buffer.from(Array.from({ length: 32 }, (_, i) => i));
+      jest.spyOn(nodeCrypto, 'randomBytes').mockReturnValue(bytes as any);
+
+      const sendMail = jest.fn().mockResolvedValue('ok');
+      (nodemailer.createTransport as jest.Mock).mockReturnValue({ sendMail });
+
+      const first = await service.emailActions('cool@test.com', 'VERIFY');
+      const second = await service.emailActions('cool@test.com', 'VERIFY');
+
+      expect(first).toEqual({
+        message: 'If the account exists, an email has been sent.',
+      });
+      expect(second).toEqual({
+        message: 'If the account exists, an email has been sent.',
+      });
+
+      // first call does work, second should bail out before hitting DB
+      expect(mockRepository.findOne).toHaveBeenCalledTimes(1);
+      expect(mockRepository.update).toHaveBeenCalledTimes(1);
+      expect(sendMail).toHaveBeenCalledTimes(1);
+    });
+
+    it('should wrap transport/update failures as INTERNAL_SERVER_ERROR with generic message', async () => {
+      const user = { id: 7, email: 'err@test.com' } as any;
+      mockRepository.findOne.mockResolvedValue(user);
+
+      jest
+        .spyOn(nodeCrypto, 'randomBytes')
+        .mockReturnValue(Buffer.alloc(32, 1) as any);
+
+      mockRepository.update.mockRejectedValue(new Error('db fail'));
 
       await expect(service.emailActions(user.email, 'VERIFY')).rejects.toThrow(
-        /An error occured while verifying email: hash fail/,
+        new HttpException('An error occured while sending email', HttpStatus.INTERNAL_SERVER_ERROR),
       );
+    });
+  });
+
+  describe('verifyEmail', () => {
+    it('should throw BAD_REQUEST when token is missing', async () => {
+      await expect(service.verifyEmail('')).rejects.toMatchObject({
+        status: HttpStatus.BAD_REQUEST,
+      });
+    });
+
+    it('should throw UNAUTHORIZED when token is invalid', async () => {
+      mockRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.verifyEmail('token123')).rejects.toMatchObject({
+        status: HttpStatus.UNAUTHORIZED,
+      });
+      await expect(service.verifyEmail('token123')).rejects.toThrow('Invalid token');
+    });
+
+    it('should throw UNAUTHORIZED when token is expired', async () => {
+      const token = 't';
+      const tokenHash = nodeCrypto.createHash('sha256').update(token).digest('hex');
+
+      mockRepository.findOne.mockResolvedValue({
+        id: 1,
+        verifyToken: tokenHash,
+        verifyTokenExpiry: new Date(Date.now() - 1000),
+      });
+
+      await expect(service.verifyEmail(token)).rejects.toMatchObject({
+        status: HttpStatus.UNAUTHORIZED,
+      });
+      await expect(service.verifyEmail(token)).rejects.toThrow('Token expired');
+    });
+
+    it('should verify email and clear verify token fields', async () => {
+      const token = 'ok-token';
+      const tokenHash = nodeCrypto.createHash('sha256').update(token).digest('hex');
+
+      mockRepository.findOne.mockResolvedValue({
+        id: 5,
+        verifyToken: tokenHash,
+        verifyTokenExpiry: new Date(Date.now() + 60_000),
+      });
+
+      mockRepository.update.mockResolvedValue({ affected: 1 });
+
+      const result = await service.verifyEmail(token);
+
+      expect(result).toEqual({ message: 'Email verified' });
+      expect(mockRepository.findOne).toHaveBeenCalledWith({
+        where: { verifyToken: tokenHash },
+      });
+      expect(mockRepository.update).toHaveBeenCalledWith(5, {
+        isEmailVerified: true,
+        verifyToken: null,
+        verifyTokenExpiry: null,
+      });
+    });
+  });
+
+  describe('confirmResetPassword', () => {
+    it('should throw BAD_REQUEST when token is missing', async () => {
+      await expect(service.confirmResetPassword('', 'newpass')).rejects.toMatchObject(
+        { status: HttpStatus.BAD_REQUEST },
+      );
+    });
+
+    it('should throw BAD_REQUEST when newPassword is missing', async () => {
+      await expect(service.confirmResetPassword('t', '')).rejects.toMatchObject(
+        { status: HttpStatus.BAD_REQUEST },
+      );
+    });
+
+    it('should throw UNAUTHORIZED when token is invalid', async () => {
+      const token = 'bad';
+      const tokenHash = nodeCrypto.createHash('sha256').update(token).digest('hex');
+
+      mockRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.confirmResetPassword(token, 'new123')).rejects.toMatchObject(
+        { status: HttpStatus.UNAUTHORIZED },
+      );
+      expect(mockRepository.findOne).toHaveBeenCalledWith({
+        where: { forgetPasswordToken: tokenHash },
+      });
+    });
+
+    it('should throw UNAUTHORIZED when token is expired', async () => {
+      const token = 'expired';
+      const tokenHash = nodeCrypto.createHash('sha256').update(token).digest('hex');
+
+      mockRepository.findOne.mockResolvedValue({
+        id: 9,
+        forgetPasswordToken: tokenHash,
+        forgetPasswordTokenExpiry: new Date(Date.now() - 1000),
+      });
+
+      await expect(service.confirmResetPassword(token, 'new123')).rejects.toMatchObject(
+        { status: HttpStatus.UNAUTHORIZED },
+      );
+      await expect(service.confirmResetPassword(token, 'new123')).rejects.toThrow('Token expired');
+    });
+
+    it('should reset password, clear reset token fields, and return message', async () => {
+      const token = 'reset-ok';
+      const tokenHash = nodeCrypto.createHash('sha256').update(token).digest('hex');
+
+      mockRepository.findOne.mockResolvedValue({
+        id: 11,
+        forgetPasswordToken: tokenHash,
+        forgetPasswordTokenExpiry: new Date(Date.now() + 60_000),
+      });
+
+      (creatingPassword.hashPassword as jest.Mock).mockResolvedValue('hashedNew');
+      mockRepository.update.mockResolvedValue({ affected: 1 });
+
+      const result = await service.confirmResetPassword(token, ' newPass123 ');
+
+      expect(result).toEqual({ message: 'Password has been reset' });
+      expect(creatingPassword.hashPassword).toHaveBeenCalledWith('newPass123');
+      expect(mockRepository.update).toHaveBeenCalledWith(11, {
+        password: 'hashedNew',
+        forgetPasswordToken: null,
+        forgetPasswordTokenExpiry: null,
+      });
     });
   });
 });
