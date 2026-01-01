@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Request } from 'express';
 import { Order } from 'src/typeorm/entities/Order';
@@ -10,11 +10,49 @@ import { ICreateOrder, IUpdateOrder } from 'utils/Interfaces';
 
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
+
   constructor(
     @InjectRepository(Order) private orderRepository: Repository<Order>,
     @InjectRepository(Product) private productRepository: Repository<Product>,
     @InjectRepository(User) private userRepository: Repository<User>,
   ) {}
+
+  async getOrderForCheckout(orderId: number) {
+    if (!orderId || orderId <= 0) {
+      throw new HttpException('Invalid order ID', HttpStatus.BAD_REQUEST);
+    }
+
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId },
+      relations: ['user', 'items', 'items.product'],
+    });
+
+    if (!order) {
+      throw new HttpException('Order with that id does not exist!', HttpStatus.NOT_FOUND);
+    }
+
+    return order;
+  }
+
+  async completeOrderFromWebhook(orderId: number, expectedTotalCents?: number) {
+    const order = await this.getOrderForCheckout(orderId);
+
+    if (typeof expectedTotalCents === 'number' && Number.isFinite(expectedTotalCents)) {
+      const orderTotalCents = Math.round(Number(order.totalAmount) * 100);
+      if (orderTotalCents !== expectedTotalCents) {
+        throw new HttpException('Webhook total mismatch', HttpStatus.BAD_REQUEST);
+      }
+    }
+
+    if (order.status !== 'PENDING') {
+      return { received: true, ignored: true };
+    }
+
+    order.status = 'COMPLETED';
+    await this.orderRepository.save(order);
+    return { received: true };
+  }
   async getAllOrders() {
     try {
       let orders = await this.orderRepository.find({
@@ -22,8 +60,10 @@ export class OrdersService {
       });
       return { msg: 'Orders retrieved successfully', orders };
     } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Failed to get all orders', (error as any)?.stack ?? String(error));
       throw new HttpException(
-        `An error occurred while getting all orders: ${error.message}`,
+        'An error occurred while getting all orders',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -46,8 +86,10 @@ export class OrdersService {
       canAccessUser(req, order.user.id);
       return { statusCode: 200, msg: 'Order retrieved successfully', order };
     } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Failed to get order by id', (error as any)?.stack ?? String(error));
       throw new HttpException(
-        `An error occurred while getting order by id: ${error.message}`,
+        'An error occurred while getting order by id',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -67,8 +109,10 @@ export class OrdersService {
       
       return { statusCode: 200, msg: "Orders retrieved successfully", orders};
     } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Failed to get orders by user id', (error as any)?.stack ?? String(error));
       throw new HttpException(
-        `An error occurred while getting orders by user id: ${error.message}`,
+        'An error occurred while getting orders by user id',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -129,18 +173,29 @@ export class OrdersService {
             );
           }
 
+          if (!item.quantity || item.quantity <= 0) {
+            throw new HttpException('Invalid quantity', HttpStatus.BAD_REQUEST);
+          }
+
           return {
             product,
             quantity: item.quantity,
-            unitPrice: product.price,
+            unitPrice: Number(product.price),
           };
         }) || [];
+
+      // Compute totalAmount server-side to prevent tampering
+      const computedTotal = orderItems.reduce((sum, item) => {
+        const unitPrice = Number((item as any).unitPrice);
+        const quantity = Number((item as any).quantity);
+        return sum + unitPrice * quantity;
+      }, 0);
 
       const order = this.orderRepository.create({
         name: createOrderParams.name,
         user,
         items: orderItems,
-        totalAmount: createOrderParams.totalAmount,
+        totalAmount: computedTotal,
         status: createOrderParams.status || 'PENDING',
       });
 
@@ -151,8 +206,10 @@ export class OrdersService {
         order: savedOrder,
       };
     } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Failed to create order', (error as any)?.stack ?? String(error));
       throw new HttpException(
-        `An error occurred while creating the order: ${error.message}`,
+        'An error occurred while creating the order',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -214,8 +271,10 @@ export class OrdersService {
       await this.orderRepository.save(order);
       return { msg: 'Order updated successfully!', statusCode: 200 };
     } catch (error: any) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Failed to update order', (error as any)?.stack ?? String(error));
       throw new HttpException(
-        `An error occurred while updating the order... Error: ${error.message}`,
+        'An error occurred while updating the order',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -238,8 +297,10 @@ export class OrdersService {
         );
       return { msg: 'Order deleted successfully', statusCode: 200 };
     } catch (error: any) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Failed to delete order', (error as any)?.stack ?? String(error));
       throw new HttpException(
-        `An error occured while deleting the order... Error: ${error.message}`,
+        'An error occurred while deleting the order',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

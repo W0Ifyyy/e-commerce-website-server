@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/typeorm/entities/User';
 import { Repository } from 'typeorm';
@@ -7,9 +7,12 @@ import { ICreateUser, IUpdateUser } from 'utils/Interfaces';
 import * as nodemailer from 'nodemailer';
 import { MailtrapTransport } from 'mailtrap';
 import * as crypto from 'crypto';
+import { sha256Hex } from 'utils/hashingTokens';
 
 @Injectable()
 export class UserService {
+  private readonly logger = new Logger(UserService.name);
+
   constructor(
     @InjectRepository(User) private usersRepository: Repository<User>,
   ) {}
@@ -19,9 +22,11 @@ export class UserService {
     return users;
   }
   async getUserById(id: number) {
+   // Validate ID
     if (!id || id <= 0) {
       throw new HttpException('Invalid user ID', HttpStatus.BAD_REQUEST);
     }
+    // Fetch user
     let user = await this.usersRepository.findOne({
       where: { id },
       relations: ['orders', 'orders.items.product'],
@@ -32,6 +37,7 @@ export class UserService {
         HttpStatus.NOT_FOUND,
       );
 
+      // Sanitize user object
     const safeUser = {
       ...user,
       createdAt: user.createdAt.toISOString(),
@@ -41,6 +47,7 @@ export class UserService {
     return safeUser;
   }
   async createUser(params: ICreateUser) {
+    //  Check if user with that email already exists
     let existingUser = await this.usersRepository.findOne({
       where: { email: params.email },
     });
@@ -50,11 +57,13 @@ export class UserService {
         HttpStatus.CONFLICT,
       );
     try {
+      // Hash password and create user
       const hashedPassword = await hashPassword(params.password);
       const newUser = await this.usersRepository.save({
         ...params,
         password: hashedPassword,
       });
+      // Return success message
       return {
         msg: 'User created succesfully!',
         user: { ...newUser, password: null },
@@ -69,10 +78,14 @@ export class UserService {
   }
 
   async updateUser(id: number, params: IUpdateUser) {
-    //todo: check if params are undefined
+    // Validate ID and params
     if (!id || id <= 0) {
       throw new HttpException('Invalid user ID', HttpStatus.BAD_REQUEST);
     }
+    if (!params) {
+      throw new HttpException('Update parameters are required', HttpStatus.BAD_REQUEST);
+    }
+    // Update user
     const result = await this.usersRepository.update(id, params);
     if (result.affected === 0) {
       throw new HttpException(
@@ -83,10 +96,12 @@ export class UserService {
     return { msg: 'User updated successfully!' };
   }
   async deleteUserById(id: number) {
+    // Validate ID
     if (!id || id <= 0) {
       throw new HttpException('Invalid user ID', HttpStatus.BAD_REQUEST);
     }
     try {
+      // Delete user
       let deletingUserOperation = await this.usersRepository.delete({ id });
       if (deletingUserOperation.affected === 0)
         throw new HttpException(
@@ -95,7 +110,11 @@ export class UserService {
         );
       return { msg: 'User deleted succesfully' };
     } catch (error) {
-      console.log(`An error occured while deleting the user: ${error.message}`);
+      if (error instanceof HttpException) throw error;
+      this.logger.error(
+        'Failed to delete user',
+        (error as any)?.stack ?? String(error),
+      );
       throw new HttpException(
         'An error occured while deleting the user',
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -104,10 +123,16 @@ export class UserService {
   }
   async findOne(username: string) {
     try {
+      // Find user by username
       return await this.usersRepository.findOne({ where: { name: username } });
     } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error(
+        'Failed to find user by username',
+        (error as any)?.stack ?? String(error),
+      );
       throw new HttpException(
-        `An error occured while finding user by username, error: ${error.message}`,
+        'An error occured while finding user by username',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -118,23 +143,33 @@ export class UserService {
 
   async getRefreshToken(userId: number) {
     const user = await this.usersRepository.findOne({ where: { id: userId } });
-    return user ? { name: user.name, refreshToken: user.refreshToken } : null;
+    return user
+      ? { name: user.name, role: user.role, refreshToken: user.refreshToken }
+      : null;
   }
 
   async removeRefreshToken(userId: number) {
+    // Find user
     const user = await this.usersRepository.findOne({
       where: { id: userId },
     });
+    // Validate user existence
     if (!user)
       throw new HttpException(
         `User with id of: ${userId} does not exist!`,
         HttpStatus.NOT_FOUND,
       );
     try {
+      // Remove refresh token
       await this.usersRepository.update(user, { refreshToken: null });
     } catch (error: any) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error(
+        'Failed to remove refresh token',
+        (error as any)?.stack ?? String(error),
+      );
       throw new HttpException(
-        `An error occured while creating the user. Error: ${error.message}`,
+        'An error occurred while removing refresh token',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -144,8 +179,11 @@ export class UserService {
     oldPassword: string,
     newPassword: string,
   ) {
+    // Find user and validate existence
     const user = await this.usersRepository.findOne({ where: { id: userId } });
+    if(!user) throw new HttpException("User not found", HttpStatus.NOT_FOUND);
     try {
+      // Verify old password
       let isPasswordCorrect = await comparePassword(oldPassword, user.password);
       if (!isPasswordCorrect) {
         throw new HttpException(
@@ -153,10 +191,12 @@ export class UserService {
           HttpStatus.UNAUTHORIZED,
         );
       }
+      // Hash new password and update
       const hashedPassword = await hashPassword(newPassword);
       const result = await this.usersRepository.update(userId, {
         password: hashedPassword,
       });
+      // Check update result
       if (result.affected === 0) {
         throw new HttpException(
           'User with this id does not exist!',
@@ -165,8 +205,13 @@ export class UserService {
       }
       return { msg: 'Password changed successfully!' };
     } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error(
+        'Failed to change password',
+        (error as any)?.stack ?? String(error),
+      );
       throw new HttpException(
-        `An error occured while changing the password: ${error.message}`,
+        'An error occurred while changing the password',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -175,10 +220,6 @@ export class UserService {
   // In-memory cooldown (per server instance)
   private readonly emailCooldownMs = 60_000; // 60s
   private readonly emailCooldown = new Map<string, number>();
-
-  private sha256Hex(input: string): string {
-    return crypto.createHash('sha256').update(input).digest('hex');
-  }
 
   private isOnCooldown(key: string): boolean {
     const last = this.emailCooldown.get(key);
@@ -197,7 +238,7 @@ export class UserService {
 
     // Generic response to prevent email enumeration
     const generic = {
-      message: 'If the account exists, an email has been sent.',
+      message: 'An email has been sent if the address exists.',
     };
 
     const normalizedEmail = (email ?? '').trim().toLowerCase();
@@ -213,17 +254,19 @@ export class UserService {
       where: { email: normalizedEmail },
     });
 
-    // If user doesn't exist -> do NOT reveal it
+    // If user doesn't exist do not reveal it
     if (!user) {
       this.touchCooldown(cooldownKey);
       return generic;
     }
 
     try {
+      // Generate token
       const rawToken = crypto.randomBytes(32).toString('hex');
-      const tokenHash = this.sha256Hex(rawToken);
+      const tokenHash = sha256Hex(rawToken);
       const expiry = new Date(Date.now() + 3600000); // 1 hour
-
+      
+      // Store token
       if (normalizedType === 'VERIFY') {
         await this.usersRepository.update(user.id, {
           verifyToken: tokenHash,
@@ -246,7 +289,7 @@ export class UserService {
       if (!Number.isFinite(testInboxId)) {
         throw new Error('MAILTRAP_TEST_INBOX_ID must be a number');
       }
-
+      
       const transport = nodemailer.createTransport(
         MailtrapTransport({
           token,
@@ -263,6 +306,7 @@ export class UserService {
           ? `${webBase}/verifyEmail?token=${encodeURIComponent(rawToken)}`
           : `${webBase}/resetPassword?token=${encodeURIComponent(rawToken)}`;
 
+      // Send email
       await transport.sendMail({
         from: {
           address: process.env.MAIL_FROM_ADDRESS ?? 'hello@example.com',
@@ -289,18 +333,21 @@ export class UserService {
   }
 
   async verifyEmail(token: string) {
+    // Validate input
     const raw = (token ?? '').trim();
     if (!raw) throw new HttpException('Missing token', HttpStatus.BAD_REQUEST);
 
-    const tokenHash = this.sha256Hex(raw);
-
+    // Find user by token
+    const tokenHash = sha256Hex(raw);
     const user = await this.usersRepository.findOne({ where: { verifyToken: tokenHash } });
     if (!user) throw new HttpException('Invalid token', HttpStatus.UNAUTHORIZED);
 
+    // Check token expiry
     if (!user.verifyTokenExpiry || user.verifyTokenExpiry.getTime() < Date.now()) {
       throw new HttpException('Token expired', HttpStatus.UNAUTHORIZED);
     }
 
+    // Update isEmailVerified
     await this.usersRepository.update(user.id, {
       isEmailVerified: true,
       verifyToken: null,
@@ -311,25 +358,30 @@ export class UserService {
   }
 
   async confirmResetPassword(token: string, newPassword: string){
+    // Validate inputs
     const raw = (token ?? '').trim();
     if(!raw) throw new HttpException("Missing token",  HttpStatus.BAD_REQUEST);
 
     const passwordTrimmed = (newPassword ?? '').trim();
-    if(!passwordTrimmed){
+    if(!passwordTrimmed || passwordTrimmed.length === 0){
       throw new HttpException('Missing new password', HttpStatus.BAD_REQUEST);
     }
-    const tokenHash = this.sha256Hex(raw);
-
-    const user = await this.usersRepository.findOne({where: { forgetPasswordToken: tokenHash}})
     
+    // Find user by token
+    const tokenHash = sha256Hex(raw);
+    const user = await this.usersRepository.findOne({where: { forgetPasswordToken: tokenHash}})
+
+
     if(!user) throw new HttpException('Invalid token', HttpStatus.UNAUTHORIZED);
 
+    // Check token expiry
+    
     if(!user.forgetPasswordTokenExpiry || user.forgetPasswordTokenExpiry.getTime() < Date.now()){
       throw new HttpException('Token expired', HttpStatus.UNAUTHORIZED);
     }
 
+    // Update password
     const hashedPassword = await hashPassword(passwordTrimmed);
-
     await this.usersRepository.update(user.id, {
       password: hashedPassword,
       forgetPasswordToken: null,

@@ -17,7 +17,10 @@ export class CategoryService {
     return categories;
   }
   async getAllCategoriesWithDetails(id?: number) {
-    if (id) {
+    if (id !== undefined) {
+      if (!Number.isInteger(id) || id <= 0) {
+        throw new HttpException('Invalid category ID', HttpStatus.BAD_REQUEST);
+      }
       let category = await this.categoryRepository.findOne({
         where: { id },
         relations: ['products'],

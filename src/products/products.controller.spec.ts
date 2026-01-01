@@ -11,9 +11,11 @@ describe('ProductsController', () => {
 
   const mockProductsService = {
     getProducts: jest.fn(),
+    getProductsPaginated: jest.fn(),
     getProductById: jest.fn(),
     getProductsByIds: jest.fn(),
     getProductsByNameSearch: jest.fn(),
+    getProductsByNameSearchPaginated: jest.fn(),
     createProduct: jest.fn(),
     deleteProduct: jest.fn(),
     updateProduct: jest.fn(),
@@ -78,6 +80,19 @@ describe('ProductsController', () => {
       await expect(controller.getProducts()).rejects.toThrow(error);
       expect(service.getProducts).toHaveBeenCalledTimes(1);
     });
+
+    it('should call paginated service when page/limit provided', async () => {
+      const payload = {
+        items: [{ id: 1, name: 'Laptop' }],
+        meta: { page: 1, limit: 10, totalItems: 1, totalPages: 1, hasNextPage: false, hasPrevPage: false },
+      };
+      mockProductsService.getProductsPaginated.mockResolvedValue(payload);
+
+      const result = await controller.getProducts('1', '10');
+
+      expect(result).toEqual(payload);
+      expect(service.getProductsPaginated).toHaveBeenCalledWith(1, 10);
+    });
   });
 
   describe('getProductsBySearch', () => {
@@ -124,6 +139,19 @@ describe('ProductsController', () => {
       mockProductsService.getProductsByNameSearch.mockRejectedValue(error);
 
       await expect(controller.getProductsBySearch('NonExistent')).rejects.toThrow(error);
+    });
+
+    it('should call paginated search service when page/limit provided', async () => {
+      const payload = {
+        items: [{ id: 1, name: 'Laptop' }],
+        meta: { page: 2, limit: 5, totalItems: 9, totalPages: 2, hasNextPage: false, hasPrevPage: true },
+      };
+      mockProductsService.getProductsByNameSearchPaginated.mockResolvedValue(payload);
+
+      const result = await controller.getProductsBySearch('Lap', '2', '5');
+
+      expect(result).toEqual(payload);
+      expect(service.getProductsByNameSearchPaginated).toHaveBeenCalledWith('Lap', 2, 5);
     });
   });
 

@@ -1,1 +1,3 @@
 implement email verification, and password reseting
+
+fix success page

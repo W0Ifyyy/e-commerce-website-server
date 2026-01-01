@@ -12,6 +12,7 @@ describe('ProductsService', () => {
 
   const mockProductRepository = {
     find: jest.fn(),
+    findAndCount: jest.fn(),
     findOne: jest.fn(),
     create: jest.fn(),
     save: jest.fn(),
@@ -294,6 +295,160 @@ describe('ProductsService', () => {
       expect((mockProductRepository as any).createQueryBuilder).toHaveBeenCalledWith('product');
       expect(qb.getMany).toHaveBeenCalledTimes(1);
       expect(mockProductRepository.find).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getProductsPaginated', () => {
+    it('should return paginated items and meta', async () => {
+      const mockProducts = [
+        { id: 1, name: 'Laptop', description: 'Fancy laptop', price: 999, orderItems: [], category: { id: 1 } },
+      ];
+
+      mockProductRepository.findAndCount.mockResolvedValue([mockProducts, 25]);
+
+      const result = await service.getProductsPaginated(2, 10);
+
+      expect(result.items).toEqual(mockProducts);
+      expect(result.meta).toEqual({
+        page: 2,
+        limit: 10,
+        totalItems: 25,
+        totalPages: 3,
+        hasNextPage: true,
+        hasPrevPage: true,
+      });
+
+      expect(mockProductRepository.findAndCount).toHaveBeenCalledWith({
+        relations: ['orderItems', 'category'],
+        skip: 10,
+        take: 10,
+        order: { id: 'ASC' },
+      });
+    });
+
+    it('should fall back to page 1 when page is out of range (non-empty dataset)', async () => {
+      // totalItems=1 => totalPages=1; requesting page 2 should return page 1
+      mockProductRepository.findAndCount.mockResolvedValue([[], 1]);
+      const firstPageItems = [{ id: 1, name: 'Laptop' }];
+      mockProductRepository.find.mockResolvedValue(firstPageItems);
+
+      const result = await service.getProductsPaginated(2, 10);
+
+      expect(result.items).toEqual(firstPageItems);
+      expect(result.meta).toEqual({
+        page: 1,
+        limit: 10,
+        totalItems: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPrevPage: false,
+      });
+
+      expect(mockProductRepository.find).toHaveBeenCalledWith({
+        relations: ['orderItems', 'category'],
+        skip: 0,
+        take: 10,
+        order: { id: 'ASC' },
+      });
+    });
+
+    it('should fall back to page 1 when page is out of range (empty dataset)', async () => {
+      mockProductRepository.findAndCount.mockResolvedValue([[], 0]);
+
+      const result = await service.getProductsPaginated(100, 10);
+
+      expect(result.items).toEqual([]);
+      expect(result.meta).toEqual({
+        page: 1,
+        limit: 10,
+        totalItems: 0,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPrevPage: false,
+      });
+      expect(mockProductRepository.find).not.toHaveBeenCalled();
+    });
+
+    it('should throw bad request for invalid page/limit', async () => {
+      await expect(service.getProductsPaginated(0, 10)).rejects.toThrow(
+        new HttpException('Invalid page', HttpStatus.BAD_REQUEST),
+      );
+      await expect(service.getProductsPaginated(1, 0)).rejects.toThrow(
+        new HttpException('Invalid limit', HttpStatus.BAD_REQUEST),
+      );
+      await expect(service.getProductsPaginated(1, 101)).rejects.toThrow(
+        new HttpException('limit must be <= 100', HttpStatus.BAD_REQUEST),
+      );
+    });
+  });
+
+  describe('getProductsByNameSearchPaginated', () => {
+    let qb: any;
+
+    beforeEach(() => {
+      qb = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: jest.fn(),
+      };
+      (mockProductRepository as any).createQueryBuilder = jest.fn().mockReturnValue(qb);
+    });
+
+    it('should return paginated search results with meta', async () => {
+      const mockProducts = [
+        { id: 1, name: 'Laptop', description: 'Fancy laptop', price: 999, orderItems: [], category: { id: 1 } },
+      ];
+
+      qb.getManyAndCount.mockResolvedValue([mockProducts, 11]);
+
+      const result = await service.getProductsByNameSearchPaginated('Lap', 1, 10);
+
+      expect(result.items).toEqual(mockProducts);
+      expect(result.meta).toEqual({
+        page: 1,
+        limit: 10,
+        totalItems: 11,
+        totalPages: 2,
+        hasNextPage: true,
+        hasPrevPage: false,
+      });
+
+      expect((mockProductRepository as any).createQueryBuilder).toHaveBeenCalledWith('product');
+      expect(qb.where).toHaveBeenCalledWith(
+        "product.name LIKE :name ESCAPE '\\\\'",
+        { name: '%Lap' },
+      );
+      expect(qb.skip).toHaveBeenCalledWith(0);
+      expect(qb.take).toHaveBeenCalledWith(10);
+      expect(qb.getManyAndCount).toHaveBeenCalledTimes(1);
+    });
+
+    it('should fall back to page 1 when search page is out of range', async () => {
+      qb.getManyAndCount.mockResolvedValueOnce([[], 1]);
+      qb.getManyAndCount.mockResolvedValueOnce([[{ id: 1, name: 'Laptop' }], 1]);
+
+      const result = await service.getProductsByNameSearchPaginated('Lap', 2, 10);
+
+      expect(result.items).toEqual([{ id: 1, name: 'Laptop' }]);
+      expect(result.meta).toEqual({
+        page: 1,
+        limit: 10,
+        totalItems: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPrevPage: false,
+      });
+    });
+
+    it('should validate name and pagination params', async () => {
+      await expect(service.getProductsByNameSearchPaginated('', 1, 10)).rejects.toThrow(
+        new HttpException('Invalid product name', HttpStatus.BAD_REQUEST),
+      );
+      await expect(service.getProductsByNameSearchPaginated('Lap', 0, 10)).rejects.toThrow(
+        new HttpException('Invalid page', HttpStatus.BAD_REQUEST),
+      );
     });
   });
 

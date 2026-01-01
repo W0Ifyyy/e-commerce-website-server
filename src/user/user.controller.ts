@@ -12,6 +12,7 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { UserService } from './user.service';
 import { UpdateUserDto } from 'src/user/dtos/UpdateUserDto';
 import { canAccessUser } from 'utils/canAccess';
@@ -19,41 +20,41 @@ import { Roles } from 'utils/rolesDecorator';
 import { Public } from 'utils/publicDecorator';
 import { RequestPasswordDto } from './dtos/RequestPasswordResetDto';
 import { TokenDto } from './dtos/TokenDto';
+import ConfirmResetPasswordDto from './dtos/ConfirmResetPasswordDto';
+import EmailActionsDto from './dtos/EmailActionsDto';
+import ChangePasswordDto from './dtos/ChangePasswordDto';
 
 @Controller('user')
 export class UserController {
   constructor(private userService: UserService) {}
   @Public()
-  @Get('/verifyEmail/confirm')
-  verifyEmail(@Query('token') token: string) {
-    return this.userService.verifyEmail(token);
-  }
-
-  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60 } })
   @Post('/verifyEmail/confirm')
   verifyEmailPost(@Body() req: TokenDto) {
     return this.userService.verifyEmail(req?.token);
   }
 
   @Public()
+  @Throttle({ default: { limit: 3, ttl: 60 } })
   @Post("/resetPassword/request")
   resetPasswordRequest(@Body() req: RequestPasswordDto){
     return this.userService.emailActions(req.email, 'RESET');
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60 } })
   @Post("/resetPassword/confirm")
-  resetPasswordConfirm(@Body() req: {token: string, newPassword: string }){
+  resetPasswordConfirm(@Body() req: ConfirmResetPasswordDto){
     return this.userService.confirmResetPassword(req?.token, req?.newPassword);
   }
 
   @Roles('admin', 'user')
+  @Throttle({ default: { limit: 5, ttl: 60 } })
   @Post('/verifyEmail')
   async emailActions(
     @Req() req: any,
-    @Body() body: { emailType: string; email?: string },
+    @Body() body: EmailActionsDto,
   ) {
-    console.log("neck hurt")
     const userId = req?.user?.userId;
     canAccessUser(req, userId);
 
@@ -104,13 +105,13 @@ export class UserController {
   changePassword(
     @Req() req: any,
     @Param('id', ParseIntPipe) id: number,
-    @Body() changePasswordDto: { oldPassword: string; newPassword: string },
+    @Body() body: ChangePasswordDto,
   ) {
     canAccessUser(req, id);
     return this.userService.changePassword(
       id,
-      changePasswordDto.oldPassword,
-      changePasswordDto.newPassword,
+      body.oldPassword,
+      body.newPassword,
     );
   }
 }

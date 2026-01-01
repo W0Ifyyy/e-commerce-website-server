@@ -341,8 +341,8 @@ describe('AuthService', () => {
 
       expect(mockJwtService.sign).toHaveBeenNthCalledWith(
         1,
-        { username: 'testuser', sub: 1 },
-        { expiresIn: '600s' },
+        { username: 'testuser', sub: 1, role: undefined },
+        { expiresIn: '15m' },
       );
     });
 
@@ -351,7 +351,7 @@ describe('AuthService', () => {
 
       expect(mockJwtService.sign).toHaveBeenNthCalledWith(
         2,
-        { username: 'testuser', sub: 1 },
+        { username: 'testuser', sub: 1, role: undefined },
         { expiresIn: '7d' },
       );
     });

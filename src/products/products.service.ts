@@ -5,6 +5,20 @@ import { Product } from '../typeorm/entities/Product';
 import { Repository, In, Like } from 'typeorm';
 import { ICreateProduct, IUpdateProduct } from '../../utils/Interfaces';  
 
+type PaginationMeta = {
+  page: number;
+  limit: number;
+  totalItems: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+};
+
+export type PaginatedResponse<T> = {
+  items: T[];
+  meta: PaginationMeta;
+};
+
 @Injectable()
 export class ProductsService {
   constructor(
@@ -16,6 +30,35 @@ export class ProductsService {
     return input.replace(/[%_\\]/g, '\\$&');
   }
 
+  private normalizePagination(page: number, limit: number): { page: number; limit: number; skip: number } {
+    if (!Number.isInteger(page) || page <= 0) {
+      throw new HttpException('Invalid page', HttpStatus.BAD_REQUEST);
+    }
+
+    if (!Number.isInteger(limit) || limit <= 0) {
+      throw new HttpException('Invalid limit', HttpStatus.BAD_REQUEST);
+    }
+
+    const MAX_LIMIT = 100;
+    if (limit > MAX_LIMIT) {
+      throw new HttpException(`limit must be <= ${MAX_LIMIT}`, HttpStatus.BAD_REQUEST);
+    }
+
+    return { page, limit, skip: (page - 1) * limit };
+  }
+
+  private buildPaginationMeta(page: number, limit: number, totalItems: number): PaginationMeta {
+    const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / limit);
+    return {
+      page,
+      limit,
+      totalItems,
+      totalPages,
+      hasNextPage: totalPages !== 0 && page < totalPages,
+      hasPrevPage: totalPages !== 0 && page > 1,
+    };
+  }
+
   async getProducts() {
     let products = await this.productRepository.find({
       relations: ['orderItems', 'category'],
@@ -23,6 +66,42 @@ export class ProductsService {
     if (!products || products.length === 0)
       throw new HttpException('No products found', HttpStatus.NOT_FOUND);
     return products;
+  }
+
+  async getProductsPaginated(page: number, limit: number): Promise<PaginatedResponse<Product>> {
+    const { skip } = this.normalizePagination(page, limit);
+
+    const [items, totalItems] = await this.productRepository.findAndCount({
+      relations: ['orderItems', 'category'],
+      skip,
+      take: limit,
+      order: { id: 'ASC' },
+    });
+
+    const safeTotalItems = totalItems ?? 0;
+    const totalPages = safeTotalItems === 0 ? 0 : Math.ceil(safeTotalItems / limit);
+
+    // If the requested page is out of range, return results as if page=1.
+    if ((totalPages === 0 && page !== 1) || (totalPages !== 0 && page > totalPages)) {
+      const fallbackItems = safeTotalItems === 0
+        ? []
+        : await this.productRepository.find({
+            relations: ['orderItems', 'category'],
+            skip: 0,
+            take: limit,
+            order: { id: 'ASC' },
+          });
+
+      return {
+        items: fallbackItems ?? [],
+        meta: this.buildPaginationMeta(1, limit, safeTotalItems),
+      };
+    }
+
+    return {
+      items: items ?? [],
+      meta: this.buildPaginationMeta(page, limit, safeTotalItems),
+    };
   }
   async getProductById(id: number) {
     if (!id || id <= 0) {
@@ -83,6 +162,64 @@ export class ProductsService {
     if (products.length === 0) return null;
 
     return products;
+  }
+
+  async getProductsByNameSearchPaginated(
+    name: string,
+    page: number,
+    limit: number,
+  ): Promise<PaginatedResponse<Product>> {
+    const query = name?.trim();
+    if (!query) {
+      throw new HttpException('Invalid product name', HttpStatus.BAD_REQUEST);
+    }
+
+    if (query.length > 100) {
+      throw new HttpException('Query too long', HttpStatus.BAD_REQUEST);
+    }
+
+    const { skip } = this.normalizePagination(page, limit);
+    const escaped = this.escapeLike(query);
+
+    const [items, totalItems] = await this.productRepository
+      .createQueryBuilder('product')
+      .leftJoinAndSelect('product.orderItems', 'orderItems')
+      .leftJoinAndSelect('product.category', 'category')
+      .where("product.name LIKE :name ESCAPE '\\\\'", { name: `%${escaped}` })
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    const safeTotalItems = totalItems ?? 0;
+    const totalPages = safeTotalItems === 0 ? 0 : Math.ceil(safeTotalItems / limit);
+
+    if ((totalPages === 0 && page !== 1) || (totalPages !== 0 && page > totalPages)) {
+      if (safeTotalItems === 0) {
+        return {
+          items: [],
+          meta: this.buildPaginationMeta(1, limit, 0),
+        };
+      }
+
+      const [fallbackItems] = await this.productRepository
+        .createQueryBuilder('product')
+        .leftJoinAndSelect('product.orderItems', 'orderItems')
+        .leftJoinAndSelect('product.category', 'category')
+        .where("product.name LIKE :name ESCAPE '\\\\'", { name: `%${escaped}` })
+        .skip(0)
+        .take(limit)
+        .getManyAndCount();
+
+      return {
+        items: fallbackItems ?? [],
+        meta: this.buildPaginationMeta(1, limit, safeTotalItems),
+      };
+    }
+
+    return {
+      items: items ?? [],
+      meta: this.buildPaginationMeta(page, limit, safeTotalItems),
+    };
   }
   async createProduct(params: ICreateProduct) {
     let ifExists = await this.productRepository.findOne({

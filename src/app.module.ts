@@ -14,12 +14,20 @@ import { Category } from './typeorm/entities/Category';
 import { CategoryModule } from './category/category.module';
 import { OrderItem } from './typeorm/entities/OrderItem';
 import { CheckoutModule } from './checkout/checkout.module';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60,
+        limit: 60,
+      },
+    ]),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -31,7 +39,7 @@ import { CheckoutModule } from './checkout/checkout.module';
         username: configService.get<string>('DB_USERNAME'),
         database: configService.get<string>('DB_NAME'),
         entities: [Product, User, Order, Category, OrderItem],
-        synchronize: true,
+        synchronize: configService.get<string>('NODE_ENV') !== 'production',
       }),
     }),
     ProductsModule,
@@ -42,6 +50,12 @@ import { CheckoutModule } from './checkout/checkout.module';
     CheckoutModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}

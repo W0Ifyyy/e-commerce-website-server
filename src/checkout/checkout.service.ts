@@ -1,11 +1,9 @@
 import {
   Injectable,
-  Redirect,
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
 import { stripe } from '../../lib/stripe';
-import { ProductItemDto } from './dtos/ProductDto';
 import { OrdersService } from 'src/orders/orders.service';
 import { UserService } from 'src/user/user.service';
 
@@ -16,37 +14,58 @@ export class CheckoutService {
     private readonly userService: UserService,
   ) {}
 
-  async finalizeCheckout(
-    products: ProductItemDto[],
-    orderId: number,
-    userId: number,
-  ) {
-    if (
-      !Array.isArray(products) ||
-      products.length === 0 ||
-      !orderId ||
-      !userId
-    ) {
+  async finalizeCheckout(orderId: number, userId: number | undefined) {
+    if (!orderId || orderId <= 0 || !userId || userId <= 0) {
       throw new HttpException(
-        'Missing or invalid dependencies. Expect a non-empty products array and valid orderId and userId.',
+        'Missing or invalid dependencies. Expect a valid orderId and authenticated user.',
         HttpStatus.BAD_REQUEST,
       );
     }
-    const user = await this.userService.getUserById(userId);
-    if (!user) {
-      throw new Error('User not found');
+
+    const order = await this.ordersService.getOrderForCheckout(orderId);
+    if (!order?.user?.id || order.user.id !== userId) {
+      throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
     }
 
-    const line_items = products.map((item) => ({
-      price_data: {
-        currency: user.preferredCurrency.toLowerCase(),
-        product_data: {
-          name: item.name,
+    if (order.status !== 'PENDING') {
+      throw new HttpException('Order is not payable', HttpStatus.CONFLICT);
+    }
+
+    if (!Array.isArray(order.items) || order.items.length === 0) {
+      throw new HttpException('Order has no items', HttpStatus.BAD_REQUEST);
+    }
+
+    const user = await this.userService.getUserById(userId);
+    if (!user) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    const currency = (user.preferredCurrency ?? 'USD').toLowerCase();
+
+    const line_items = order.items.map((item: any) => {
+      const name = item?.product?.name ?? 'Item';
+      const unitPrice = Number(item?.product?.price ?? item?.unitPrice ?? 0);
+      const quantity = Number(item?.quantity ?? 0);
+
+      if (!Number.isFinite(unitPrice) || unitPrice < 0 || !Number.isFinite(quantity) || quantity <= 0) {
+        throw new HttpException('Invalid order item', HttpStatus.BAD_REQUEST);
+      }
+
+      const unit_amount = Math.round(unitPrice * 100);
+      return {
+        price_data: {
+          currency,
+          product_data: { name },
+          unit_amount,
         },
-        unit_amount: item.price * 100,
-      },
-      quantity: item.quantity,
-    }));
+        quantity,
+      };
+    });
+
+    const expectedTotalCents = line_items.reduce((sum: number, li: any) => {
+      return sum + Number(li.price_data.unit_amount) * Number(li.quantity);
+    }, 0);
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items,
@@ -55,6 +74,9 @@ export class CheckoutService {
       cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/cart`,
       metadata: {
         orderId: orderId.toString(),
+        userId: userId.toString(),
+        expectedTotalCents: expectedTotalCents.toString(),
+        currency,
       },
     });
 
@@ -72,14 +94,34 @@ export class CheckoutService {
 
       // Handle checkout.session.completed event
       if (event.type === 'checkout.session.completed') {
-        const session = event.data.object;
-        const orderId = session.metadata?.orderId;
+        const session: any = event.data.object;
+        const orderIdRaw = session?.metadata?.orderId;
+        const expectedTotalCentsRaw = session?.metadata?.expectedTotalCents;
 
-        if (orderId) {
-          // Update the order status to COMPLETED
-          await this.ordersService.updateOrder(parseInt(orderId), {
-            status: 'COMPLETED',
-          });
+        const orderId = Number(orderIdRaw);
+        const expectedTotalCents = expectedTotalCentsRaw
+          ? Number(expectedTotalCentsRaw)
+          : undefined;
+
+        // Only complete when Stripe says it was paid
+        if (session?.payment_status && session.payment_status !== 'paid') {
+          return { received: true, ignored: true };
+        }
+
+        if (Number.isFinite(orderId) && orderId > 0) {
+          // Best-effort amount check
+          if (
+            typeof expectedTotalCents === 'number' &&
+            Number.isFinite(session?.amount_total) &&
+            session.amount_total !== expectedTotalCents
+          ) {
+            throw new Error('Webhook amount mismatch');
+          }
+
+          return await this.ordersService.completeOrderFromWebhook(
+            orderId,
+            expectedTotalCents,
+          );
         }
       }
 

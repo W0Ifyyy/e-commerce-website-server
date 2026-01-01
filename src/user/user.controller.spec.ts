@@ -24,7 +24,11 @@ describe('UserController', () => {
     confirmResetPassword: jest.fn(),
   };
 
-  const mockReq: any = {
+  const userReq: any = {
+    user: { userId: 1, role: 'user' },
+  };
+
+  const adminReq: any = {
     user: { userId: 1, role: 'admin' },
   };
 
@@ -58,9 +62,8 @@ describe('UserController', () => {
       ];
       mockUserService.getAllUsers.mockResolvedValue(mockUsers);
 
-      const result = await controller.getUsers(mockReq);
+      const result = await controller.getUsers(adminReq);
 
-      // getUsers does not call canAccessUser
       expect(canAccessUser).not.toHaveBeenCalled();
       expect(result).toEqual(mockUsers);
       expect(mockUserService.getAllUsers).toHaveBeenCalledTimes(1);
@@ -69,7 +72,7 @@ describe('UserController', () => {
     it('should return empty array when no users exist', async () => {
       mockUserService.getAllUsers.mockResolvedValue([]);
 
-      const result = await controller.getUsers(mockReq);
+      const result = await controller.getUsers(adminReq);
 
       expect(result).toEqual([]);
       expect(canAccessUser).not.toHaveBeenCalled();
@@ -83,20 +86,14 @@ describe('UserController', () => {
       );
       mockUserService.getAllUsers.mockRejectedValue(error);
 
-      await expect(controller.getUsers(mockReq)).rejects.toThrow(HttpException);
-      await expect(controller.getUsers(mockReq)).rejects.toThrow(
-        'Database error',
-      );
+      await expect(controller.getUsers(adminReq)).rejects.toThrow(HttpException);
+      await expect(controller.getUsers(adminReq)).rejects.toThrow('Database error');
     });
 
     it('should handle unexpected service failures', async () => {
-      mockUserService.getAllUsers.mockRejectedValue(
-        new Error('Unexpected error'),
-      );
+      mockUserService.getAllUsers.mockRejectedValue(new Error('Unexpected error'));
 
-      await expect(controller.getUsers(mockReq)).rejects.toThrow(
-        'Unexpected error',
-      );
+      await expect(controller.getUsers(adminReq)).rejects.toThrow('Unexpected error');
     });
   });
 
@@ -112,9 +109,9 @@ describe('UserController', () => {
       };
       mockUserService.getUserById.mockResolvedValue(mockUser);
 
-      const result = await controller.getUserById(mockReq, 1);
+      const result = await controller.getUserById(userReq, 1);
 
-      expect(canAccessUser).toHaveBeenCalledWith(mockReq, 1);
+      expect(canAccessUser).toHaveBeenCalledWith(userReq, 1);
       expect(result).toEqual(mockUser);
       expect(mockUserService.getUserById).toHaveBeenCalledWith(1);
       expect(mockUserService.getUserById).toHaveBeenCalledTimes(1);
@@ -122,14 +119,11 @@ describe('UserController', () => {
 
     it('should pass the correct id to service', async () => {
       const userId = 42;
-      mockUserService.getUserById.mockResolvedValue({
-        id: userId,
-        name: 'Test',
-      });
+      mockUserService.getUserById.mockResolvedValue({ id: userId, name: 'Test' });
 
-      await controller.getUserById(mockReq, userId);
+      await controller.getUserById(userReq, userId);
 
-      expect(canAccessUser).toHaveBeenCalledWith(mockReq, userId);
+      expect(canAccessUser).toHaveBeenCalledWith(userReq, userId);
       expect(mockUserService.getUserById).toHaveBeenCalledWith(userId);
     });
 
@@ -140,13 +134,11 @@ describe('UserController', () => {
       );
       mockUserService.getUserById.mockRejectedValue(error);
 
-      await expect(controller.getUserById(mockReq, 999)).rejects.toThrow(
-        HttpException,
-      );
-      await expect(controller.getUserById(mockReq, 999)).rejects.toThrow(
+      await expect(controller.getUserById(userReq, 999)).rejects.toThrow(HttpException);
+      await expect(controller.getUserById(userReq, 999)).rejects.toThrow(
         'User with ID 999 not found',
       );
-      expect(canAccessUser).toHaveBeenCalledWith(mockReq, 999);
+      expect(canAccessUser).toHaveBeenCalledWith(userReq, 999);
       expect(mockUserService.getUserById).toHaveBeenCalledWith(999);
     });
 
@@ -154,13 +146,9 @@ describe('UserController', () => {
       const error = new HttpException('Invalid user ID', HttpStatus.BAD_REQUEST);
       mockUserService.getUserById.mockRejectedValue(error);
 
-      await expect(controller.getUserById(mockReq, 0)).rejects.toThrow(
-        HttpException,
-      );
-      await expect(controller.getUserById(mockReq, 0)).rejects.toThrow(
-        'Invalid user ID',
-      );
-      expect(canAccessUser).toHaveBeenCalledWith(mockReq, 0);
+      await expect(controller.getUserById(userReq, 0)).rejects.toThrow(HttpException);
+      await expect(controller.getUserById(userReq, 0)).rejects.toThrow('Invalid user ID');
+      expect(canAccessUser).toHaveBeenCalledWith(userReq, 0);
     });
 
     it('should handle service throwing generic errors', async () => {
@@ -168,10 +156,10 @@ describe('UserController', () => {
         new Error('Database connection failed'),
       );
 
-      await expect(controller.getUserById(mockReq, 1)).rejects.toThrow(
+      await expect(controller.getUserById(userReq, 1)).rejects.toThrow(
         'Database connection failed',
       );
-      expect(canAccessUser).toHaveBeenCalledWith(mockReq, 1);
+      expect(canAccessUser).toHaveBeenCalledWith(userReq, 1);
     });
   });
 
@@ -185,9 +173,9 @@ describe('UserController', () => {
       const mockResponse = { msg: 'User updated successfully!' };
       mockUserService.updateUser.mockResolvedValue(mockResponse);
 
-      const result = await controller.updateUser(userId, updateDto, mockReq);
+      const result = await controller.updateUser(userId, updateDto, userReq);
 
-      expect(canAccessUser).toHaveBeenCalledWith(mockReq, userId);
+      expect(canAccessUser).toHaveBeenCalledWith(userReq, userId);
       expect(result).toEqual(mockResponse);
       expect(mockUserService.updateUser).toHaveBeenCalledWith(userId, updateDto);
       expect(mockUserService.updateUser).toHaveBeenCalledTimes(1);
@@ -196,26 +184,22 @@ describe('UserController', () => {
     it('should handle partial updates', async () => {
       const userId = 2;
       const updateDto: UpdateUserDto = { name: 'New Name Only' };
-      mockUserService.updateUser.mockResolvedValue({
-        msg: 'User updated successfully!',
-      });
+      mockUserService.updateUser.mockResolvedValue({ msg: 'User updated successfully!' });
 
-      await controller.updateUser(userId, updateDto, mockReq);
+      await controller.updateUser(userId, updateDto, userReq);
 
-      expect(canAccessUser).toHaveBeenCalledWith(mockReq, userId);
+      expect(canAccessUser).toHaveBeenCalledWith(userReq, userId);
       expect(mockUserService.updateUser).toHaveBeenCalledWith(userId, updateDto);
     });
 
     it('should handle email-only updates', async () => {
       const userId = 3;
       const updateDto: UpdateUserDto = { email: 'newemail@test.com' };
-      mockUserService.updateUser.mockResolvedValue({
-        msg: 'User updated successfully!',
-      });
+      mockUserService.updateUser.mockResolvedValue({ msg: 'User updated successfully!' });
 
-      await controller.updateUser(userId, updateDto, mockReq);
+      await controller.updateUser(userId, updateDto, userReq);
 
-      expect(canAccessUser).toHaveBeenCalledWith(mockReq, userId);
+      expect(canAccessUser).toHaveBeenCalledWith(userReq, userId);
       expect(mockUserService.updateUser).toHaveBeenCalledWith(userId, updateDto);
     });
 
@@ -226,13 +210,13 @@ describe('UserController', () => {
       );
       mockUserService.updateUser.mockRejectedValue(error);
 
-      await expect(
-        controller.updateUser(999, { name: 'Test' }, mockReq),
-      ).rejects.toThrow(HttpException);
-      await expect(
-        controller.updateUser(999, { name: 'Test' }, mockReq),
-      ).rejects.toThrow('User with this id does not exist!');
-      expect(canAccessUser).toHaveBeenCalledWith(mockReq, 999);
+      await expect(controller.updateUser(999, { name: 'Test' }, userReq)).rejects.toThrow(
+        HttpException,
+      );
+      await expect(controller.updateUser(999, { name: 'Test' }, userReq)).rejects.toThrow(
+        'User with this id does not exist!',
+      );
+      expect(canAccessUser).toHaveBeenCalledWith(userReq, 999);
     });
 
     it('should propagate INTERNAL_SERVER_ERROR on database failure', async () => {
@@ -242,22 +226,20 @@ describe('UserController', () => {
       );
       mockUserService.updateUser.mockRejectedValue(error);
 
-      await expect(
-        controller.updateUser(1, { name: 'Test' }, mockReq),
-      ).rejects.toThrow(HttpException);
-      expect(canAccessUser).toHaveBeenCalledWith(mockReq, 1);
+      await expect(controller.updateUser(1, { name: 'Test' }, userReq)).rejects.toThrow(
+        HttpException,
+      );
+      expect(canAccessUser).toHaveBeenCalledWith(userReq, 1);
     });
 
     it('should handle empty update DTO', async () => {
       const userId = 1;
       const updateDto: UpdateUserDto = {};
-      mockUserService.updateUser.mockResolvedValue({
-        msg: 'User updated successfully!',
-      });
+      mockUserService.updateUser.mockResolvedValue({ msg: 'User updated successfully!' });
 
-      await controller.updateUser(userId, updateDto, mockReq);
+      await controller.updateUser(userId, updateDto, userReq);
 
-      expect(canAccessUser).toHaveBeenCalledWith(mockReq, userId);
+      expect(canAccessUser).toHaveBeenCalledWith(userReq, userId);
       expect(mockUserService.updateUser).toHaveBeenCalledWith(userId, updateDto);
     });
   });
@@ -268,24 +250,12 @@ describe('UserController', () => {
       const mockResponse = { msg: 'User deleted succesfully' };
       mockUserService.deleteUserById.mockResolvedValue(mockResponse);
 
-      const result = await controller.deleteUserById(mockReq, userId);
+      const result = await controller.deleteUserById(userReq, userId);
 
-      expect(canAccessUser).toHaveBeenCalledWith(mockReq, userId);
+      expect(canAccessUser).toHaveBeenCalledWith(userReq, userId);
       expect(result).toEqual(mockResponse);
       expect(mockUserService.deleteUserById).toHaveBeenCalledWith(userId);
       expect(mockUserService.deleteUserById).toHaveBeenCalledTimes(1);
-    });
-
-    it('should pass correct user id to service', async () => {
-      const userId = 99;
-      mockUserService.deleteUserById.mockResolvedValue({
-        msg: 'User deleted succesfully',
-      });
-
-      await controller.deleteUserById(mockReq, userId);
-
-      expect(canAccessUser).toHaveBeenCalledWith(mockReq, userId);
-      expect(mockUserService.deleteUserById).toHaveBeenCalledWith(userId);
     });
 
     it('should propagate NOT_FOUND error when user does not exist', async () => {
@@ -295,13 +265,11 @@ describe('UserController', () => {
       );
       mockUserService.deleteUserById.mockRejectedValue(error);
 
-      await expect(controller.deleteUserById(mockReq, 999)).rejects.toThrow(
-        HttpException,
-      );
-      await expect(controller.deleteUserById(mockReq, 999)).rejects.toThrow(
+      await expect(controller.deleteUserById(userReq, 999)).rejects.toThrow(HttpException);
+      await expect(controller.deleteUserById(userReq, 999)).rejects.toThrow(
         "The user you're trying to delete does not exist!",
       );
-      expect(canAccessUser).toHaveBeenCalledWith(mockReq, 999);
+      expect(canAccessUser).toHaveBeenCalledWith(userReq, 999);
     });
 
     it('should propagate INTERNAL_SERVER_ERROR on database failure', async () => {
@@ -311,26 +279,11 @@ describe('UserController', () => {
       );
       mockUserService.deleteUserById.mockRejectedValue(error);
 
-      await expect(controller.deleteUserById(mockReq, 1)).rejects.toThrow(
-        HttpException,
-      );
-      await expect(controller.deleteUserById(mockReq, 1)).rejects.toThrow(
+      await expect(controller.deleteUserById(userReq, 1)).rejects.toThrow(HttpException);
+      await expect(controller.deleteUserById(userReq, 1)).rejects.toThrow(
         'An error occured while deleting the user',
       );
-      expect(canAccessUser).toHaveBeenCalledWith(mockReq, 1);
-    });
-
-    it('should handle deletion of user with existing orders', async () => {
-      const error = new HttpException(
-        'Cannot delete user with existing orders',
-        HttpStatus.CONFLICT,
-      );
-      mockUserService.deleteUserById.mockRejectedValue(error);
-
-      await expect(controller.deleteUserById(mockReq, 1)).rejects.toThrow(
-        HttpException,
-      );
-      expect(canAccessUser).toHaveBeenCalledWith(mockReq, 1);
+      expect(canAccessUser).toHaveBeenCalledWith(userReq, 1);
     });
   });
 
@@ -344,13 +297,9 @@ describe('UserController', () => {
       const mockResponse = { msg: 'Password changed successfully!' };
       mockUserService.changePassword.mockResolvedValue(mockResponse);
 
-      const result = await controller.changePassword(
-        mockReq,
-        userId,
-        changePasswordDto,
-      );
+      const result = await controller.changePassword(userReq, userId, changePasswordDto as any);
 
-      expect(canAccessUser).toHaveBeenCalledWith(mockReq, userId);
+      expect(canAccessUser).toHaveBeenCalledWith(userReq, userId);
       expect(result).toEqual(mockResponse);
       expect(mockUserService.changePassword).toHaveBeenCalledWith(
         userId,
@@ -370,19 +319,14 @@ describe('UserController', () => {
       });
       mockUserService.emailActions.mockResolvedValue('mail-ok');
 
-      const result = await controller.emailActions(mockReq, {
+      const result = await controller.emailActions(userReq, {
         emailType: 'VERIFY',
         email: 'someoneelse@test.com',
-      });
+      } as any);
 
-      expect(canAccessUser).toHaveBeenCalledWith(mockReq, 1);
+      expect(canAccessUser).toHaveBeenCalledWith(userReq, 1);
       expect(mockUserService.getUserById).toHaveBeenCalledWith(1);
-
-      // because fetched user.role !== admin
-      expect(mockUserService.emailActions).toHaveBeenCalledWith(
-        'own@test.com',
-        'VERIFY',
-      );
+      expect(mockUserService.emailActions).toHaveBeenCalledWith('own@test.com', 'VERIFY');
       expect(result).toBe('mail-ok');
     });
 
@@ -394,17 +338,14 @@ describe('UserController', () => {
       });
       mockUserService.emailActions.mockResolvedValue('mail-ok');
 
-      const result = await controller.emailActions(mockReq, {
+      const result = await controller.emailActions(adminReq, {
         emailType: 'VERIFY',
         email: 'target@test.com',
-      });
+      } as any);
 
-      expect(canAccessUser).toHaveBeenCalledWith(mockReq, 1);
+      expect(canAccessUser).toHaveBeenCalledWith(adminReq, 1);
       expect(mockUserService.getUserById).toHaveBeenCalledWith(1);
-      expect(mockUserService.emailActions).toHaveBeenCalledWith(
-        'target@test.com',
-        'VERIFY',
-      );
+      expect(mockUserService.emailActions).toHaveBeenCalledWith('target@test.com', 'VERIFY');
       expect(result).toBe('mail-ok');
     });
 
@@ -416,16 +357,11 @@ describe('UserController', () => {
       });
       mockUserService.emailActions.mockResolvedValue('mail-ok');
 
-      const result = await controller.emailActions(mockReq, {
-        emailType: 'RESET',
-      });
+      const result = await controller.emailActions(adminReq, { emailType: 'RESET' } as any);
 
-      expect(canAccessUser).toHaveBeenCalledWith(mockReq, 1);
+      expect(canAccessUser).toHaveBeenCalledWith(adminReq, 1);
       expect(mockUserService.getUserById).toHaveBeenCalledWith(1);
-      expect(mockUserService.emailActions).toHaveBeenCalledWith(
-        'admin@test.com',
-        'RESET',
-      );
+      expect(mockUserService.emailActions).toHaveBeenCalledWith('admin@test.com', 'RESET');
       expect(result).toBe('mail-ok');
     });
 
@@ -439,23 +375,12 @@ describe('UserController', () => {
         new HttpException('Mail error', HttpStatus.INTERNAL_SERVER_ERROR),
       );
 
-      await expect(
-        controller.emailActions(mockReq, { emailType: 'VERIFY' }),
-      ).rejects.toThrow('Mail error');
+      await expect(controller.emailActions(userReq, { emailType: 'VERIFY' } as any)).rejects.toThrow(
+        'Mail error',
+      );
 
-      expect(canAccessUser).toHaveBeenCalledWith(mockReq, 1);
+      expect(canAccessUser).toHaveBeenCalledWith(userReq, 1);
       expect(mockUserService.getUserById).toHaveBeenCalledWith(1);
-    });
-  });
-
-  describe('verifyEmail (GET /user/verifyEmail/confirm)', () => {
-    it('should delegate to service.verifyEmail', async () => {
-      mockUserService.verifyEmail.mockResolvedValue({ msg: 'ok' });
-
-      const result = await controller.verifyEmail('token123');
-
-      expect(mockUserService.verifyEmail).toHaveBeenCalledWith('token123');
-      expect(result).toEqual({ msg: 'ok' });
     });
   });
 
@@ -483,12 +408,14 @@ describe('UserController', () => {
 
   describe('resetPasswordConfirm (POST /user/resetPassword/confirm)', () => {
     it('should delegate to service.confirmResetPassword', async () => {
-      mockUserService.confirmResetPassword.mockResolvedValue({ message: 'Password has been reset' });
+      mockUserService.confirmResetPassword.mockResolvedValue({
+        message: 'Password has been reset',
+      });
 
       const result = await controller.resetPasswordConfirm({
         token: 't1',
         newPassword: 'newPass123',
-      });
+      } as any);
 
       expect(mockUserService.confirmResetPassword).toHaveBeenCalledWith('t1', 'newPass123');
       expect(result).toEqual({ message: 'Password has been reset' });

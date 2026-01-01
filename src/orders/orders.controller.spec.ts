@@ -175,10 +175,10 @@ describe('OrdersController', () => {
       );
     });
 
-    it('should propagate NOT_FOUND error when order does not exist (wrapped by service)', async () => {
+    it('should propagate NOT_FOUND error when order does not exist', async () => {
       const error = new HttpException(
-        'An error occurred while getting order by id: Order with that id does not exist!',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+        'Order with that id does not exist!',
+        HttpStatus.NOT_FOUND,
       );
       mockOrdersService.getOrderById.mockRejectedValue(error);
 
@@ -313,13 +313,13 @@ describe('OrdersController', () => {
     it('should propagate database errors', async () => {
       mockOrdersService.deleteOrder.mockRejectedValue(
         new HttpException(
-          'An error occured while deleting the order... Error: Database deletion failed',
+          'An error occurred while deleting the order',
           HttpStatus.INTERNAL_SERVER_ERROR,
         ),
       );
 
       await expect(controller.deleteOrder(1, mockReq)).rejects.toThrow(
-        'Database deletion failed',
+        'An error occurred while deleting the order',
       );
     });
   });

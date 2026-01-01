@@ -3,7 +3,6 @@ import { CheckoutService } from './checkout.service';
 import { OrdersService } from '../orders/orders.service';
 import { UserService } from '../user/user.service';
 import { HttpException, HttpStatus } from '@nestjs/common';
-import { ProductItemDto } from './dtos/ProductDto';
 
 jest.mock('../../lib/stripe', () => ({
   stripe: {
@@ -19,7 +18,8 @@ describe('CheckoutService', () => {
   let userService: UserService;
 
   const mockOrdersService = {
-    updateOrder: jest.fn(),
+    getOrderForCheckout: jest.fn(),
+    completeOrderFromWebhook: jest.fn(),
   };
 
   const mockUserService = {
@@ -33,18 +33,16 @@ describe('CheckoutService', () => {
     preferredCurrency: 'USD',
   };
 
-  const mockProducts: ProductItemDto[] = [
-    {
-      name: 'Test Product 1',
-      price: 100,
-      quantity: 2,
-    },
-    {
-      name: 'Test Product 2',
-      price: 50,
-      quantity: 1,
-    },
-  ];
+  const mockOrder = {
+    id: 1,
+    status: 'PENDING',
+    user: { id: 1 },
+    items: [
+      { quantity: 2, product: { name: 'Test Product 1', price: 100 } },
+      { quantity: 1, product: { name: 'Test Product 2', price: 50 } },
+    ],
+    totalAmount: 250,
+  };
 
   const mockStripeSession = {
     id: 'cs_test_123',
@@ -90,25 +88,23 @@ describe('CheckoutService', () => {
 
     beforeEach(() => {
       mockUserService.getUserById.mockResolvedValue(mockUser);
+      mockOrdersService.getOrderForCheckout.mockResolvedValue(mockOrder);
       (stripe.checkout.sessions.create as jest.Mock).mockResolvedValue(
         mockStripeSession,
       );
     });
 
     it('should create a checkout session successfully', async () => {
-      const result = await service.finalizeCheckout(
-        mockProducts,
-        orderId,
-        userId,
-      );
+      const result = await service.finalizeCheckout(orderId, userId);
 
       expect(result).toEqual({ url: mockStripeSession.url });
       expect(mockUserService.getUserById).toHaveBeenCalledWith(userId);
+      expect(mockOrdersService.getOrderForCheckout).toHaveBeenCalledWith(orderId);
       expect(stripe.checkout.sessions.create).toHaveBeenCalledTimes(1);
     });
 
     it('should create session with correct line items', async () => {
-      await service.finalizeCheckout(mockProducts, orderId, userId);
+      await service.finalizeCheckout(orderId, userId);
 
       expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -135,7 +131,7 @@ describe('CheckoutService', () => {
     });
 
     it('should create session with correct URLs', async () => {
-      await service.finalizeCheckout(mockProducts, orderId, userId);
+      await service.finalizeCheckout(orderId, userId);
 
       expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -146,19 +142,22 @@ describe('CheckoutService', () => {
     });
 
     it('should include orderId in session metadata', async () => {
-      await service.finalizeCheckout(mockProducts, orderId, userId);
+      await service.finalizeCheckout(orderId, userId);
 
       expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          metadata: {
+          metadata: expect.objectContaining({
             orderId: orderId.toString(),
-          },
+            userId: userId.toString(),
+            expectedTotalCents: '25000',
+            currency: 'usd',
+          }),
         }),
       );
     });
 
     it('should set payment mode and method types correctly', async () => {
-      await service.finalizeCheckout(mockProducts, orderId, userId);
+      await service.finalizeCheckout(orderId, userId);
 
       expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -172,89 +171,82 @@ describe('CheckoutService', () => {
       const userWithEuro = { ...mockUser, preferredCurrency: 'EUR' };
       mockUserService.getUserById.mockResolvedValue(userWithEuro);
 
-      await service.finalizeCheckout(mockProducts, orderId, userId);
+      await service.finalizeCheckout(orderId, userId);
 
       const createCall = (stripe.checkout.sessions.create as jest.Mock).mock
         .calls[0][0];
       expect(createCall.line_items[0].price_data.currency).toBe('eur');
     });
 
-    it('should convert price to cents correctly', async () => {
-      const singleProduct: ProductItemDto[] = [
-        { name: 'Product', price: 99.99, quantity: 1 },
-      ];
-
-      await service.finalizeCheckout(singleProduct, orderId, userId);
-
-      const createCall = (stripe.checkout.sessions.create as jest.Mock).mock
-        .calls[0][0];
-      expect(createCall.line_items[0].price_data.unit_amount).toBe(9999);
-    });
-
-    it('should throw BAD_REQUEST when products array is empty', async () => {
-      await expect(
-        service.finalizeCheckout([], orderId, userId),
-      ).rejects.toThrow(
-        new HttpException(
-          'Missing or invalid dependencies. Expect a non-empty products array and valid orderId and userId.',
-          HttpStatus.BAD_REQUEST,
-        ),
-      );
-
-      expect(mockUserService.getUserById).not.toHaveBeenCalled();
-      expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
-    });
-
-    it('should throw BAD_REQUEST when products is not an array', async () => {
-      await expect(
-        service.finalizeCheckout(null as any, orderId, userId),
-      ).rejects.toThrow(HttpException);
-
-      await expect(
-        service.finalizeCheckout(undefined as any, orderId, userId),
-      ).rejects.toThrow(HttpException);
-
-      await expect(
-        service.finalizeCheckout({} as any, orderId, userId),
-      ).rejects.toThrow(HttpException);
-    });
-
     it('should throw BAD_REQUEST when orderId is missing', async () => {
       await expect(
-        service.finalizeCheckout(mockProducts, null, userId),
+        service.finalizeCheckout(null as any, userId),
       ).rejects.toThrow(HttpException);
 
       await expect(
-        service.finalizeCheckout(mockProducts, undefined, userId),
+        service.finalizeCheckout(undefined as any, userId),
       ).rejects.toThrow(HttpException);
 
       await expect(
-        service.finalizeCheckout(mockProducts, 0, userId),
+        service.finalizeCheckout(0 as any, userId),
       ).rejects.toThrow(HttpException);
     });
 
     it('should throw BAD_REQUEST when userId is missing', async () => {
       await expect(
-        service.finalizeCheckout(mockProducts, orderId, null),
+        service.finalizeCheckout(orderId, null as any),
       ).rejects.toThrow(HttpException);
 
       await expect(
-        service.finalizeCheckout(mockProducts, orderId, undefined),
+        service.finalizeCheckout(orderId, undefined as any),
       ).rejects.toThrow(HttpException);
 
       await expect(
-        service.finalizeCheckout(mockProducts, orderId, 0),
+        service.finalizeCheckout(orderId, 0 as any),
       ).rejects.toThrow(HttpException);
     });
 
-    it('should throw error when user is not found', async () => {
+    it('should throw NOT_FOUND when user is not found', async () => {
       mockUserService.getUserById.mockResolvedValue(null);
 
       await expect(
-        service.finalizeCheckout(mockProducts, orderId, userId),
-      ).rejects.toThrow('User not found');
+        service.finalizeCheckout(orderId, userId),
+      ).rejects.toThrow(HttpException);
 
       expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+    });
+
+    it('should throw FORBIDDEN when order does not belong to user', async () => {
+      mockOrdersService.getOrderForCheckout.mockResolvedValue({
+        ...mockOrder,
+        user: { id: 999 },
+      });
+
+      await expect(service.finalizeCheckout(orderId, userId)).rejects.toThrow(
+        new HttpException('Forbidden', HttpStatus.FORBIDDEN),
+      );
+    });
+
+    it('should throw CONFLICT when order is not payable', async () => {
+      mockOrdersService.getOrderForCheckout.mockResolvedValue({
+        ...mockOrder,
+        status: 'COMPLETED',
+      });
+
+      await expect(service.finalizeCheckout(orderId, userId)).rejects.toThrow(
+        HttpException,
+      );
+    });
+
+    it('should throw BAD_REQUEST when order has no items', async () => {
+      mockOrdersService.getOrderForCheckout.mockResolvedValue({
+        ...mockOrder,
+        items: [],
+      });
+
+      await expect(service.finalizeCheckout(orderId, userId)).rejects.toThrow(
+        HttpException,
+      );
     });
 
     it('should propagate UserService errors', async () => {
@@ -262,7 +254,7 @@ describe('CheckoutService', () => {
       mockUserService.getUserById.mockRejectedValue(error);
 
       await expect(
-        service.finalizeCheckout(mockProducts, orderId, userId),
+        service.finalizeCheckout(orderId, userId),
       ).rejects.toThrow(HttpException);
     });
 
@@ -273,57 +265,22 @@ describe('CheckoutService', () => {
       );
 
       await expect(
-        service.finalizeCheckout(mockProducts, orderId, userId),
+        service.finalizeCheckout(orderId, userId),
       ).rejects.toThrow('Stripe API error');
     });
 
-    it('should handle single product checkout', async () => {
-      const singleProduct: ProductItemDto[] = [
-        { name: 'Single Product', price: 25.50, quantity: 1 },
-      ];
-
-      const result = await service.finalizeCheckout(
-        singleProduct,
-        orderId,
-        userId,
-      );
-
-      expect(result).toEqual({ url: mockStripeSession.url });
-      expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          line_items: [
-            {
-              price_data: {
-                currency: 'usd',
-                product_data: { name: 'Single Product' },
-                unit_amount: 2550,
-              },
-              quantity: 1,
-            },
-          ],
-        }),
-      );
-    });
-
-    it('should handle multiple quantities of same product', async () => {
-      const productWithMultipleQty: ProductItemDto[] = [
-        { name: 'Bulk Product', price: 10, quantity: 100 },
-      ];
-
-      await service.finalizeCheckout(productWithMultipleQty, orderId, userId);
-
-      const createCall = (stripe.checkout.sessions.create as jest.Mock).mock
-        .calls[0][0];
-      expect(createCall.line_items[0].quantity).toBe(100);
-    });
-
     it('should use different orderIds correctly', async () => {
-      await service.finalizeCheckout(mockProducts, 999, userId);
+      mockOrdersService.getOrderForCheckout.mockResolvedValue({
+        ...mockOrder,
+        id: 999,
+      });
+
+      await service.finalizeCheckout(999, userId);
 
       expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
         expect.objectContaining({
           success_url: 'http://localhost:3000/success?orderId=999',
-          metadata: { orderId: '999' },
+          metadata: expect.objectContaining({ orderId: '999' }),
         }),
       );
     });
@@ -334,10 +291,7 @@ describe('CheckoutService', () => {
     const mockPayload = Buffer.from(JSON.stringify({ type: 'test' }));
 
     beforeEach(() => {
-      mockOrdersService.updateOrder.mockResolvedValue({
-        msg: 'Order updated successfully!',
-        statusCode: 200,
-      });
+      mockOrdersService.completeOrderFromWebhook.mockResolvedValue({ received: true });
     });
 
     it('should verify webhook signature', async () => {
@@ -365,7 +319,9 @@ describe('CheckoutService', () => {
         type: 'checkout.session.completed',
         data: {
           object: {
-            metadata: { orderId: '42' },
+            payment_status: 'paid',
+            amount_total: 25000,
+            metadata: { orderId: '42', expectedTotalCents: '25000' },
           },
         },
       };
@@ -374,9 +330,7 @@ describe('CheckoutService', () => {
       const result = await service.handleWebhookEvent(mockSignature, mockPayload);
 
       expect(result).toEqual({ received: true });
-      expect(mockOrdersService.updateOrder).toHaveBeenCalledWith(42, {
-        status: 'COMPLETED',
-      });
+      expect(mockOrdersService.completeOrderFromWebhook).toHaveBeenCalledWith(42, 25000);
     });
 
     it('should not update order when orderId is missing from metadata', async () => {
@@ -384,6 +338,7 @@ describe('CheckoutService', () => {
         type: 'checkout.session.completed',
         data: {
           object: {
+            payment_status: 'paid',
             metadata: {},
           },
         },
@@ -393,7 +348,7 @@ describe('CheckoutService', () => {
       const result = await service.handleWebhookEvent(mockSignature, mockPayload);
 
       expect(result).toEqual({ received: true });
-      expect(mockOrdersService.updateOrder).not.toHaveBeenCalled();
+      expect(mockOrdersService.completeOrderFromWebhook).not.toHaveBeenCalled();
     });
 
     it('should not update order when metadata is missing', async () => {
@@ -408,7 +363,7 @@ describe('CheckoutService', () => {
       const result = await service.handleWebhookEvent(mockSignature, mockPayload);
 
       expect(result).toEqual({ received: true });
-      expect(mockOrdersService.updateOrder).not.toHaveBeenCalled();
+      expect(mockOrdersService.completeOrderFromWebhook).not.toHaveBeenCalled();
     });
 
     it('should ignore non-checkout.session.completed events', async () => {
@@ -425,7 +380,7 @@ describe('CheckoutService', () => {
       const result = await service.handleWebhookEvent(mockSignature, mockPayload);
 
       expect(result).toEqual({ received: true });
-      expect(mockOrdersService.updateOrder).not.toHaveBeenCalled();
+      expect(mockOrdersService.completeOrderFromWebhook).not.toHaveBeenCalled();
     });
 
     it('should handle multiple different event types', async () => {
@@ -447,7 +402,7 @@ describe('CheckoutService', () => {
         expect(result).toEqual({ received: true });
       }
 
-      expect(mockOrdersService.updateOrder).not.toHaveBeenCalled();
+      expect(mockOrdersService.completeOrderFromWebhook).not.toHaveBeenCalled();
     });
 
     it('should throw error on invalid signature', async () => {
@@ -460,7 +415,7 @@ describe('CheckoutService', () => {
         service.handleWebhookEvent('invalid_signature', mockPayload),
       ).rejects.toThrow('Invalid signature');
 
-      expect(mockOrdersService.updateOrder).not.toHaveBeenCalled();
+      expect(mockOrdersService.completeOrderFromWebhook).not.toHaveBeenCalled();
     });
 
     it('should log error message when webhook fails', async () => {
@@ -486,7 +441,9 @@ describe('CheckoutService', () => {
         type: 'checkout.session.completed',
         data: {
           object: {
-            metadata: { orderId: '1' },
+            payment_status: 'paid',
+            amount_total: 25000,
+            metadata: { orderId: '1', expectedTotalCents: '25000' },
           },
         },
       };
@@ -496,7 +453,7 @@ describe('CheckoutService', () => {
         'Order not found',
         HttpStatus.NOT_FOUND,
       );
-      mockOrdersService.updateOrder.mockRejectedValue(updateError);
+      mockOrdersService.completeOrderFromWebhook.mockRejectedValue(updateError);
 
       await expect(
         service.handleWebhookEvent(mockSignature, mockPayload),
@@ -508,7 +465,9 @@ describe('CheckoutService', () => {
         type: 'checkout.session.completed',
         data: {
           object: {
-            metadata: { orderId: '12345' },
+            payment_status: 'paid',
+            amount_total: 25000,
+            metadata: { orderId: '12345', expectedTotalCents: '25000' },
           },
         },
       };
@@ -516,9 +475,7 @@ describe('CheckoutService', () => {
 
       await service.handleWebhookEvent(mockSignature, mockPayload);
 
-      expect(mockOrdersService.updateOrder).toHaveBeenCalledWith(12345, {
-        status: 'COMPLETED',
-      });
+      expect(mockOrdersService.completeOrderFromWebhook).toHaveBeenCalledWith(12345, 25000);
     });
 
     it('should return received: true for all successfully processed events', async () => {

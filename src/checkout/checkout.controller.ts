@@ -7,31 +7,28 @@ import {
   HttpStatus,
   Post,
   Req,
+  UseGuards,
 } from '@nestjs/common';
 import { CheckoutService } from './checkout.service';
 import { Public } from 'utils/publicDecorator';
-import { ProductItemDto } from './dtos/ProductDto';
 import { Request } from 'express';
+import { JwtAuthGuard } from 'src/auth/jwt.auth.guard';
 
 @Controller('checkout')
 export class CheckoutController {
   constructor(private readonly checkoutService: CheckoutService) {}
 
-  @Public()
+  @UseGuards(JwtAuthGuard)
   @Post('finalize')
   async finalizeCheckout(
     @Body()
     body: {
       orderId: number;
-      userId: number;
-      products: ProductItemDto[];
     },
+    @Req() req: Request,
   ) {
-    return this.checkoutService.finalizeCheckout(
-      body.products,
-      body.orderId,
-      body.userId,
-    );
+    const userId = (req as any)?.user?.userId as number | undefined;
+    return this.checkoutService.finalizeCheckout(body.orderId, userId);
   }
 
   @Post('/webhook')

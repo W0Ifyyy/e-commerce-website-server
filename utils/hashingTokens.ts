@@ -1,4 +1,5 @@
 import * as bcrypt from 'bcrypt';
+import { createHash } from 'crypto';
 
 export async function hashToken(
   token: string,
@@ -25,4 +26,8 @@ export async function compareTokens(
       `An error occured while comparing tokens: ${error.message}`,
     );
   }
+}
+
+export function sha256Hex(value: string): string {
+  return createHash('sha256').update(value, 'utf8').digest('hex');
 }

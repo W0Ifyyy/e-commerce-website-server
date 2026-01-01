@@ -264,7 +264,7 @@ describe('UserService', () => {
     it('should wrap repository error as INTERNAL_SERVER_ERROR', async () => {
       mockRepository.findOne.mockRejectedValue(new Error('db fail'));
       await expect(service.findOne('broken')).rejects.toThrow(
-        /An error occured while finding user by username, error: db fail/,
+        /An error occured while finding user by username/,
       );
     });
   });
@@ -317,7 +317,7 @@ describe('UserService', () => {
       mockRepository.findOne.mockResolvedValue(user);
       mockRepository.update.mockRejectedValue(new Error('update fail'));
       await expect(service.removeRefreshToken(4)).rejects.toThrow(
-        /An error occured while creating the user. Error: update fail/,
+        /An error occurred while removing refresh token/,
       );
     });
   });
@@ -362,29 +362,26 @@ describe('UserService', () => {
       });
     });
 
-    it('should wrap missing user error as INTERNAL_SERVER_ERROR', async () => {
+    it('should throw NOT_FOUND when user does not exist', async () => {
       mockRepository.findOne.mockResolvedValue(null);
       await expect(service.changePassword(9, 'old', 'new')).rejects.toThrow(
-        /An error occured while changing the password: Cannot read properties of null/,
+        new HttpException('User not found', HttpStatus.NOT_FOUND),
       );
     });
 
-    it('should wrap UNAUTHORIZED error as INTERNAL_SERVER_ERROR message', async () => {
+    it('should throw UNAUTHORIZED when old password is incorrect', async () => {
       const mockUser = { id: 2, password: 'hashedPassword' };
       mockRepository.findOne.mockResolvedValue(mockUser);
       (creatingPassword.comparePassword as jest.Mock).mockResolvedValue(false);
 
-      try {
-        await service.changePassword(2, 'wrongPassword', 'newPassword');
-      } catch (e: any) {
-        expect(e.getStatus()).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
-        expect(e.message).toMatch(
-          /An error occured while changing the password: Old password is incorrect/,
-        );
-      }
+      await expect(
+        service.changePassword(2, 'wrongPassword', 'newPassword'),
+      ).rejects.toThrow(
+        new HttpException('Old password is incorrect', HttpStatus.UNAUTHORIZED),
+      );
     });
 
-    it('should wrap NOT_FOUND (affected=0) error as INTERNAL_SERVER_ERROR', async () => {
+    it('should throw NOT_FOUND when update affected=0', async () => {
       const mockUser = { id: 3, password: 'hashedPassword' };
       mockRepository.findOne.mockResolvedValue(mockUser);
       (creatingPassword.comparePassword as jest.Mock).mockResolvedValue(true);
@@ -396,7 +393,7 @@ describe('UserService', () => {
       await expect(
         service.changePassword(3, 'oldPass', 'newPass'),
       ).rejects.toThrow(
-        /An error occured while changing the password: User with this id does not exist!/,
+        new HttpException('User with this id does not exist!', HttpStatus.NOT_FOUND),
       );
     });
 
@@ -411,7 +408,7 @@ describe('UserService', () => {
       await expect(
         service.changePassword(5, 'old', 'new'),
       ).rejects.toThrow(
-        /An error occured while changing the password: hash crash/,
+        /An error occurred while changing the password/,
       );
     });
   });
@@ -436,7 +433,7 @@ describe('UserService', () => {
       const result = await service.emailActions(user.email, 'VERIFY');
 
       expect(result).toEqual({
-        message: 'If the account exists, an email has been sent.',
+        message: 'An email has been sent if the address exists.',
       });
 
       expect(mockRepository.findOne).toHaveBeenCalledWith({
@@ -479,7 +476,7 @@ describe('UserService', () => {
       const result = await service.emailActions(user.email, 'RESET');
 
       expect(result).toEqual({
-        message: 'If the account exists, an email has been sent.',
+        message: 'An email has been sent if the address exists.',
       });
 
       expect(mockRepository.update).toHaveBeenCalledWith(
@@ -511,7 +508,7 @@ describe('UserService', () => {
     it('should return generic response and do nothing when email is empty', async () => {
       const result = await service.emailActions('', 'VERIFY');
       expect(result).toEqual({
-        message: 'If the account exists, an email has been sent.',
+        message: 'An email has been sent if the address exists.',
       });
 
       expect(mockRepository.findOne).not.toHaveBeenCalled();
@@ -528,7 +525,7 @@ describe('UserService', () => {
       const result = await service.emailActions('missing@test.com', 'VERIFY');
 
       expect(result).toEqual({
-        message: 'If the account exists, an email has been sent.',
+        message: 'An email has been sent if the address exists.',
       });
       expect(mockRepository.findOne).toHaveBeenCalled();
       expect(mockRepository.update).not.toHaveBeenCalled();
@@ -549,10 +546,10 @@ describe('UserService', () => {
       const second = await service.emailActions('cool@test.com', 'VERIFY');
 
       expect(first).toEqual({
-        message: 'If the account exists, an email has been sent.',
+        message: 'An email has been sent if the address exists.',
       });
       expect(second).toEqual({
-        message: 'If the account exists, an email has been sent.',
+        message: 'An email has been sent if the address exists.',
       });
 
       // first call does work, second should bail out before hitting DB

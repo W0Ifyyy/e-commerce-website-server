@@ -113,7 +113,7 @@ describe('OrdersService', () => {
 
       await expect(service.getAllOrders()).rejects.toThrow(HttpException);
       await expect(service.getAllOrders()).rejects.toThrow(
-        'An error occurred while getting all orders: Database connection failed',
+        'An error occurred while getting all orders',
       );
     });
 
@@ -171,20 +171,8 @@ describe('OrdersService', () => {
     it('should throw NOT_FOUND when order does not exist', async () => {
       mockOrderRepository.findOne.mockResolvedValue(null);
 
-      try {
-        await service.getOrderById(999, mockReq);
-      } catch (error) {
-        expect(error).toBeInstanceOf(HttpException);
-        expect(error.message).toContain('Order with that id does not exist!');
-        expect(error.getStatus()).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
-      }
-    });
-
-    it('should wrap NOT_FOUND error as INTERNAL_SERVER_ERROR', async () => {
-      mockOrderRepository.findOne.mockResolvedValue(null);
-
       await expect(service.getOrderById(999, mockReq)).rejects.toThrow(
-        'An error occurred while getting order by id',
+        new HttpException('Order with that id does not exist!', HttpStatus.NOT_FOUND),
       );
     });
 
@@ -197,7 +185,7 @@ describe('OrdersService', () => {
         HttpException,
       );
       await expect(service.getOrderById(1, mockReq)).rejects.toThrow(
-        'An error occurred while getting order by id: Database error',
+        'An error occurred while getting order by id',
       );
     });
   });
@@ -244,9 +232,11 @@ describe('OrdersService', () => {
       (canAccessUser as jest.Mock).mockImplementation(() => undefined);
       mockOrderRepository.find.mockResolvedValue([]);
 
-      await expect(service.getOrdersByUserId(1, mockReq)).rejects.toThrow(HttpException);
       await expect(service.getOrdersByUserId(1, mockReq)).rejects.toThrow(
-        'An error occurred while getting orders by user id: Orders of user with given id doesnt exist!',
+        new HttpException(
+          'Orders of user with given id doesnt exist!',
+          HttpStatus.NOT_FOUND,
+        ),
       );
     });
   });
@@ -299,15 +289,9 @@ describe('OrdersService', () => {
     it('should throw NOT_FOUND when user does not exist', async () => {
       mockUserRepository.findOne.mockResolvedValue(null);
 
-      try {
-        await service.createOrder(createOrderParams, mockReq);
-      } catch (error) {
-        expect(error).toBeInstanceOf(HttpException);
-        expect(error.message).toContain(
-          'An error occurred while creating the order',
-        );
-        expect(error.message).toContain('User with ID 1 not found');
-      }
+      await expect(service.createOrder(createOrderParams, mockReq)).rejects.toThrow(
+        new HttpException('User with ID 1 not found', HttpStatus.NOT_FOUND),
+      );
     });
 
     it('should throw NOT_FOUND when products are not found', async () => {
@@ -404,7 +388,7 @@ describe('OrdersService', () => {
       await expect(
         service.createOrder(createOrderParams, mockReq),
       ).rejects.toThrow(
-        'An error occurred while creating the order: Database save failed',
+        'An error occurred while creating the order',
       );
     });
   });
@@ -548,7 +532,7 @@ describe('OrdersService', () => {
       await expect(
         service.updateOrder(1, updateOrderParams, mockReq),
       ).rejects.toThrow(
-        'An error occurred while updating the order... Error: Database update failed',
+        'An error occurred while updating the order',
       );
     });
 
@@ -607,17 +591,7 @@ describe('OrdersService', () => {
         expect(error.message).toContain(
           "The order you're trying to delete does not exist!",
         );
-      }
-    });
-
-    it('should wrap NOT_FOUND as INTERNAL_SERVER_ERROR', async () => {
-      mockOrderRepository.findOne.mockResolvedValue(null);
-
-      try {
-        await service.deleteOrder(999, mockReq);
-      } catch (error) {
-        expect(error).toBeInstanceOf(HttpException);
-        expect(error.getStatus()).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
+        expect(error.getStatus()).toBe(HttpStatus.NOT_FOUND);
       }
     });
 
@@ -628,7 +602,7 @@ describe('OrdersService', () => {
       );
 
       await expect(service.deleteOrder(1, mockReq)).rejects.toThrow(
-        'An error occured while deleting the order... Error: Database deletion failed',
+        'An error occurred while deleting the order',
       );
     });
 

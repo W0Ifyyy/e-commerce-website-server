@@ -68,9 +68,13 @@ export class AuthService {
       }
 
       // token rotation
-      const newPayload = { username: storedToken.name, sub: userId };
+      const newPayload = {
+        username: storedToken.name,
+        sub: userId,
+        role: (storedToken as any).role,
+      };
       const newAccessToken = this.jwtService.sign(newPayload, {
-        expiresIn: '600s',
+        expiresIn: '15m',
       });
       const newRefreshToken = this.jwtService.sign(newPayload, {
         expiresIn: '7d',

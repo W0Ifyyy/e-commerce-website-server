@@ -5,6 +5,7 @@ import { UserService } from '../user/user.service';
 import { UnauthorizedException } from '@nestjs/common';
 import { Response, Request } from 'express';
 import { CreateUserDto } from '../user/dtos/CreateUserDto';
+import { ThrottlerGuard } from '@nestjs/throttler';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -53,7 +54,7 @@ describe('AuthController', () => {
       cookies: {},
     };
 
-    const module: TestingModule = await Test.createTestingModule({
+    const moduleBuilder = Test.createTestingModule({
       controllers: [AuthController],
       providers: [
         {
@@ -65,7 +66,10 @@ describe('AuthController', () => {
           useValue: mockUserService,
         },
       ],
-    }).compile();
+    }).overrideGuard(ThrottlerGuard)
+      .useValue({ canActivate: jest.fn().mockReturnValue(true) });
+
+    const module: TestingModule = await moduleBuilder.compile();
 
     controller = module.get<AuthController>(AuthController);
     authService = module.get<AuthService>(AuthService);
@@ -92,7 +96,9 @@ describe('AuthController', () => {
         mockResponse as Response,
       );
 
-      expect(result).toEqual({ message: 'Logged in' });
+      expect(result).toMatchObject({ message: 'Logged in' });
+      expect(result).toHaveProperty('csrfToken', expect.any(String));
+      expect(result).toHaveProperty('csrf_token', expect.any(String));
       expect(mockAuthService.login).toHaveBeenCalledWith(mockUser);
     });
 
@@ -106,6 +112,7 @@ describe('AuthController', () => {
           httpOnly: true,
           secure: false,
           sameSite: 'lax',
+          path: '/',
           maxAge: 1000 * 60 * 15, // 15 minutes
         },
       );
@@ -123,6 +130,22 @@ describe('AuthController', () => {
           sameSite: 'lax',
           path: '/auth/refresh',
           maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+        },
+      );
+    });
+
+    it('should set csrf_token cookie with correct options', async () => {
+      await controller.login(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.cookie).toHaveBeenCalledWith(
+        'csrf_token',
+        expect.any(String),
+        {
+          httpOnly: true,
+          secure: false,
+          sameSite: 'lax',
+          path: '/',
+          maxAge: 1000 * 60 * 60 * 24 * 7,
         },
       );
     });
@@ -167,7 +190,7 @@ describe('AuthController', () => {
     it('should set both cookies before returning', async () => {
       await controller.login(mockRequest as Request, mockResponse as Response);
 
-      expect(mockResponse.cookie).toHaveBeenCalledTimes(2);
+      expect(mockResponse.cookie).toHaveBeenCalledTimes(3);
     });
 
     it('should handle different user objects', async () => {
@@ -230,7 +253,7 @@ describe('AuthController', () => {
         (call) => call[0] === 'refresh_token',
       );
 
-      expect(accessTokenCall[2]).not.toHaveProperty('path');
+      expect(accessTokenCall[2]).toHaveProperty('path', '/');
       expect(refreshTokenCall[2]).toHaveProperty('path', '/auth/refresh');
     });
   });
@@ -354,15 +377,47 @@ describe('AuthController', () => {
       mockAuthService.refreshToken.mockResolvedValue(newTokens);
     });
 
-    it('should refresh tokens successfully', async () => {
-      const result = await controller.refresh(mockRefreshToken);
+    it('should refresh tokens successfully (prefers cookie)', async () => {
+      mockRequest.cookies = { refresh_token: mockRefreshToken };
 
-      expect(result).toEqual(newTokens);
+      const result = await controller.refresh(
+        mockRequest as Request,
+        mockResponse as Response,
+        'ignored',
+      );
+
+        expect(result).toMatchObject({ message: 'Refreshed' });
+        expect(result).toHaveProperty('csrfToken', expect.any(String));
+        expect(result).toHaveProperty('csrf_token', expect.any(String));
       expect(mockAuthService.refreshToken).toHaveBeenCalledWith(mockRefreshToken);
+
+      expect(mockResponse.cookie).toHaveBeenCalledWith(
+        'access_token',
+        newTokens.access_token,
+        expect.objectContaining({ httpOnly: true }),
+      );
+      expect(mockResponse.cookie).toHaveBeenCalledWith(
+        'refresh_token',
+        newTokens.refresh_token,
+        expect.objectContaining({ httpOnly: true, path: '/auth/refresh' }),
+      );
+
+      // CSRF cookie is set by csrf-csrf internals
+      expect(mockResponse.cookie).toHaveBeenCalledWith(
+        'csrf_token',
+        expect.any(String),
+        expect.objectContaining({ httpOnly: true }),
+      );
     });
 
-    it('should pass refresh token to service', async () => {
-      await controller.refresh(mockRefreshToken);
+    it('should fall back to body when cookie is missing', async () => {
+      mockRequest.cookies = {};
+
+      await controller.refresh(
+        mockRequest as Request,
+        mockResponse as Response,
+        mockRefreshToken,
+      );
 
       expect(mockAuthService.refreshToken).toHaveBeenCalledWith(mockRefreshToken);
       expect(mockAuthService.refreshToken).toHaveBeenCalledTimes(1);
@@ -371,7 +426,12 @@ describe('AuthController', () => {
     it('should handle different refresh tokens', async () => {
       const differentToken = 'different_refresh_token';
 
-      await controller.refresh(differentToken);
+      mockRequest.cookies = { refresh_token: differentToken };
+      await controller.refresh(
+        mockRequest as Request,
+        mockResponse as Response,
+        undefined,
+      );
 
       expect(mockAuthService.refreshToken).toHaveBeenCalledWith(differentToken);
     });
@@ -381,10 +441,15 @@ describe('AuthController', () => {
         new UnauthorizedException('Invalid refresh token'),
       );
 
-      await expect(controller.refresh('invalid_token')).rejects.toThrow(
+      mockRequest.cookies = { refresh_token: 'invalid_token' };
+      await expect(
+        controller.refresh(mockRequest as Request, mockResponse as Response, undefined),
+      ).rejects.toThrow(
         UnauthorizedException,
       );
-      await expect(controller.refresh('invalid_token')).rejects.toThrow(
+      await expect(
+        controller.refresh(mockRequest as Request, mockResponse as Response, undefined),
+      ).rejects.toThrow(
         'Invalid refresh token',
       );
     });
@@ -394,7 +459,10 @@ describe('AuthController', () => {
         new UnauthorizedException('Token expired'),
       );
 
-      await expect(controller.refresh(mockRefreshToken)).rejects.toThrow(
+      mockRequest.cookies = { refresh_token: mockRefreshToken };
+      await expect(
+        controller.refresh(mockRequest as Request, mockResponse as Response, undefined),
+      ).rejects.toThrow(
         UnauthorizedException,
       );
     });
@@ -403,7 +471,10 @@ describe('AuthController', () => {
       const error = new Error('Refresh failed');
       mockAuthService.refreshToken.mockRejectedValue(error);
 
-      await expect(controller.refresh(mockRefreshToken)).rejects.toThrow(
+      mockRequest.cookies = { refresh_token: mockRefreshToken };
+      await expect(
+        controller.refresh(mockRequest as Request, mockResponse as Response, undefined),
+      ).rejects.toThrow(
         'Refresh failed',
       );
     });
@@ -413,7 +484,10 @@ describe('AuthController', () => {
         new UnauthorizedException('Invalid refresh token'),
       );
 
-      await expect(controller.refresh('')).rejects.toThrow(UnauthorizedException);
+      mockRequest.cookies = { refresh_token: '' };
+      await expect(
+        controller.refresh(mockRequest as Request, mockResponse as Response, undefined),
+      ).rejects.toThrow(UnauthorizedException);
     });
 
     it('should handle null token', async () => {
@@ -421,7 +495,10 @@ describe('AuthController', () => {
         new UnauthorizedException('Invalid refresh token'),
       );
 
-      await expect(controller.refresh(null)).rejects.toThrow(UnauthorizedException);
+      mockRequest.cookies = {};
+      await expect(
+        controller.refresh(mockRequest as Request, mockResponse as Response, null),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 
@@ -467,10 +544,10 @@ describe('AuthController', () => {
       });
     });
 
-    it('should clear all three cookies', async () => {
+    it('should clear all cookies', async () => {
       await controller.logout(mockRequest as Request, mockResponse as Response);
 
-      expect(mockResponse.clearCookie).toHaveBeenCalledTimes(3);
+      expect(mockResponse.clearCookie).toHaveBeenCalledTimes(4);
     });
 
     it('should call authService.logout with user id from JWT payload', async () => {
@@ -519,7 +596,7 @@ describe('AuthController', () => {
         UnauthorizedException,
       );
 
-      expect(mockResponse.clearCookie).toHaveBeenCalledTimes(3);
+      expect(mockResponse.clearCookie).toHaveBeenCalledTimes(4);
       expect(mockAuthService.logout).not.toHaveBeenCalled();
     });
 
@@ -530,7 +607,7 @@ describe('AuthController', () => {
         controller.logout(mockRequest as Request, mockResponse as Response),
       ).toThrow(UnauthorizedException);
 
-      expect(mockResponse.clearCookie).toHaveBeenCalledTimes(3);
+      expect(mockResponse.clearCookie).toHaveBeenCalledTimes(4);
       expect(mockAuthService.logout).not.toHaveBeenCalled();
     });
 
@@ -549,7 +626,7 @@ describe('AuthController', () => {
 
       await controller.logout(mockRequest as Request, mockResponse as Response);
 
-      expect(callOrder.filter((c) => c === 'clearCookie')).toHaveLength(3);
+      expect(callOrder.filter((c) => c === 'clearCookie')).toHaveLength(4);
       expect(callOrder[callOrder.length - 1]).toBe('logout');
     });
 
@@ -571,7 +648,7 @@ describe('AuthController', () => {
         // Expected to throw
       }
 
-      expect(mockResponse.clearCookie).toHaveBeenCalledTimes(3);
+      expect(mockResponse.clearCookie).toHaveBeenCalledTimes(4);
     });
   });
 });

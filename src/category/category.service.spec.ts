@@ -151,15 +151,11 @@ describe('CategoryService', () => {
     });
 
     it('should handle id = 0', async () => {
-      // id = 0 is falsy, so it should query all categories
-      mockCategoryRepository.find.mockResolvedValue(mockCategories);
-
-      const result = await service.getAllCategoriesWithDetails(0);
-
-      expect(result).toEqual(mockCategories);
-      expect(mockCategoryRepository.find).toHaveBeenCalledWith({
-        relations: ['products'],
-      });
+      await expect(service.getAllCategoriesWithDetails(0)).rejects.toThrow(
+        new HttpException('Invalid category ID', HttpStatus.BAD_REQUEST),
+      );
+      expect(mockCategoryRepository.find).not.toHaveBeenCalled();
+      expect(mockCategoryRepository.findOne).not.toHaveBeenCalled();
     });
 
     it('should propagate database errors when finding by id', async () => {

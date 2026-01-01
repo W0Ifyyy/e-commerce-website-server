@@ -42,7 +42,7 @@ export interface ICreateOrder {
   name?: string;
   userId: number;
   items?: OrderItemDto[];
-  totalAmount: number;
+  totalAmount?: number;
   status?: 'PENDING' | 'COMPLETED' | 'CANCELED';
 }
 

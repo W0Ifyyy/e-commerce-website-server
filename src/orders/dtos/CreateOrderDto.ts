@@ -35,9 +35,10 @@ export class CreateOrderDto {
   @Type(() => OrderItemDto)
   items: OrderItemDto[];
 
+  @IsOptional()
   @IsNumber()
   @Min(0, { message: 'Total amount must be at least 0' })
-  totalAmount: number;
+  totalAmount?: number;
 
   @IsOptional()
   @IsEnum(['PENDING', 'COMPLETED', 'CANCELED'], { message: 'Invalid status' })

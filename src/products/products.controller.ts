@@ -11,14 +11,11 @@ import {
   Post,
   Put,
   Query,
-  Req,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from 'src/products/dtos/CreateProductDto';
 import { UpdateProductDto } from 'src/products/dtos/UpdateProductDto';
 import { Public } from 'utils/publicDecorator';
-import { canAccess } from 'utils/canAccess';
-import { Request } from 'express';
 import { Roles } from 'utils/rolesDecorator';
 
 //add admin access control to create, update, delete product routes
@@ -26,15 +23,47 @@ import { Roles } from 'utils/rolesDecorator';
 export class ProductsController {
   constructor(private productService: ProductsService) {}
 
+  private parsePositiveInt(value: string | undefined, fallback: number, label: string): number {
+    if (value === undefined || value === null || value === '') return fallback;
+    if (!/^\d+$/.test(value)) {
+      throw new HttpException(`Query parameter "${label}" must be a positive integer`, HttpStatus.BAD_REQUEST);
+    }
+    const parsed = parseInt(value, 10);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      throw new HttpException(`Query parameter "${label}" must be a positive integer`, HttpStatus.BAD_REQUEST);
+    }
+    return parsed;
+  }
+
   @Public()
   @Get()
-  getProducts() {
-    return this.productService.getProducts();
+  getProducts(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    // Backward compatible: when no pagination is provided, return all products
+    if (page === undefined && limit === undefined) {
+      return this.productService.getProducts();
+    }
+
+    const parsedPage = this.parsePositiveInt(page, 1, 'page');
+    const parsedLimit = this.parsePositiveInt(limit, 10, 'limit');
+    return this.productService.getProductsPaginated(parsedPage, parsedLimit);
   }
   @Public()
   @Get('search') 
-  getProductsBySearch(@Query('name') name: string) {
-    return this.productService.getProductsByNameSearch(name);
+  getProductsBySearch(
+    @Query('name') name: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    if (page === undefined && limit === undefined) {
+      return this.productService.getProductsByNameSearch(name);
+    }
+
+    const parsedPage = this.parsePositiveInt(page, 1, 'page');
+    const parsedLimit = this.parsePositiveInt(limit, 10, 'limit');
+    return this.productService.getProductsByNameSearchPaginated(name, parsedPage, parsedLimit);
   }
 
    @Public()
