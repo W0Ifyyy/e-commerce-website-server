@@ -1,12 +1,25 @@
 import { doubleCsrf } from 'csrf-csrf';
 import * as crypto from 'crypto';
 
-const csrfSecret = process.env.CSRF_SECRET ?? crypto.randomBytes(32).toString('hex');
+const csrfSecret = process.env.CSRF_SECRET;
+if (!csrfSecret && process.env.NODE_ENV === 'production') {
+  throw new Error('CSRF_SECRET is required in production');
+}
+const effectiveCsrfSecret = csrfSecret ?? crypto.randomBytes(32).toString('hex');
+
+// Hash function for session identifier
+function hashForSession(value: string): string {
+  return crypto.createHash('sha256').update(value).digest('hex').substring(0, 16);
+}
 
 export const csrf = doubleCsrf({
-  getSecret: () => csrfSecret,
-  getSessionIdentifier: (req) =>
-    `${req.ip ?? ''}|${req.headers?.['user-agent'] ?? ''}`,
+  getSecret: () => effectiveCsrfSecret,
+  getSessionIdentifier: (req) => {
+    // Include hashed access token for stronger session binding
+    const accessToken = (req as any)?.cookies?.access_token ?? '';
+    const tokenHash = accessToken ? hashForSession(accessToken) : 'anonymous';
+    return `${tokenHash}|${req.headers?.['user-agent'] ?? ''}`;
+  },
   cookieName: 'csrf_token',
   cookieOptions: {
     httpOnly: true,

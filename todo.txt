@@ -1,3 +1,2 @@
-implement email verification, and password reseting
-
-fix success page
+todo: 
+ - when changing password, change if user wrote old password for confirmation

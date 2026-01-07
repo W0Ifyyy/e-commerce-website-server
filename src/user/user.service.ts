@@ -53,7 +53,7 @@ export class UserService {
     });
     if (existingUser)
       throw new HttpException(
-        'User with that email already exists!',
+        'Unable to create account. Please try again or contact support.',
         HttpStatus.CONFLICT,
       );
     try {
@@ -194,6 +194,7 @@ export class UserService {
       // Hash new password and update
       const hashedPassword = await hashPassword(newPassword);
       const result = await this.usersRepository.update(userId, {
+        refreshToken: null,
         password: hashedPassword,
       });
       // Check update result
@@ -386,6 +387,7 @@ export class UserService {
       password: hashedPassword,
       forgetPasswordToken: null,
       forgetPasswordTokenExpiry: null,
+      refreshToken: null,
     })
     return { message: 'Password has been reset' };
   }

@@ -21,9 +21,10 @@ import { Roles } from 'utils/rolesDecorator';
 @Controller('orders')
 export class OrdersController {
   constructor(private ordersService: OrdersService) {}
+
+  @Roles('admin')
   @Get()
-  getOrders(@Req() req: any) {
-    canAccess(req);
+  getOrders() {
     return this.ordersService.getAllOrders();
   }
   @Roles("admin", "user")

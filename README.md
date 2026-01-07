@@ -1,182 +1,210 @@
 
-# E-Commerce REST API
+# E-Commerce Backend
 
-Backend REST API for an e-commerce application built with NestJS, TypeORM, MySQL and Stripe.
+My e-commerce REST API. Built with NestJS + MySQL + Stripe. This is the backend that powers the store - handles auth, products, orders, payments, etc.
 
-## Quick Start
+## Getting Started
 
 ```bash
 cd server
 npm install
-cp .env.example .env   # create and fill variables
+```
+
+Copy `.env.example` to `.env` and fill in your values (db credentials, stripe keys, etc). Then:
+
+```bash
 npm run start:dev
 ```
 
-Health check: GET `/` returns "Hello World!" from [`AppController`](server/src/app.controller.ts) using [`AppService`](server/src/app.service.ts) inside [`AppModule`](server/src/app.module.ts).
+Hit `http://localhost:5000` - server should be running!
 
-## Features
+## What's in here
 
-- Auth (JWT access + hashed refresh tokens) via [`AuthModule`](server/src/auth/auth.module.ts)
-- Users CRUD & preferences via [`UserService`](server/src/user/user.service.ts)
-- Products & Categories with relations via [`ProductsService`](server/src/products/products.service.ts) and [`CategoryService`](server/src/category/category.service.ts)
-- Orders with items & status tracking via [`OrdersService`](server/src/orders/orders.service.ts)
-- Stripe checkout & webhook via [`CheckoutService`](server/src/checkout/checkout.service.ts)
-- Public route decorator [`Public`](server/utils/publicDecorator.ts)
-- Global validation pipe (whitelist + transform) set in [`main.ts`](server/src/main.ts)
+- **Auth** - JWT tokens stored in httpOnly cookies, refresh token rotation, 
+- **Users** - basic CRUD, password reset via email, email verification
+- **Products & Categories** - products can belong to categories, search, pagination
+- **Orders** - create orders, track status, order items with quantities
+- **Checkout** - Stripe integration with webhooks
 
-## Tech Stack
+## Tech
 
-NestJS 10, TypeORM (MySQL), Passport (local + JWT strategies), Stripe, class-validator, bcrypt.
+- NestJS 10
+- TypeORM + MySQL
+- Passport (JWT + local strategies)  
+- Stripe for payments
+- class-validator for DTOs
+- bcrypt for password hashing
 
-## Environment Variables (.env)
+## Environment Variables
+
+Here's what you need in your `.env`:
+
+Stripe api key from here: https://dashboard.stripe.com/apikeys
+Mailtrap api keys: https://mailtrap.io
 
 ```env
 DB_HOST=localhost
 DB_PORT=3306
-DB_USERNAME=your_user
-DB_PASSWORD=your_password
+DB_USERNAME=root
+DB_PASSWORD=yourpassword
 DB_NAME=ecommerce
 
 PORT=5000
 NODE_ENV=development
 CORS_ORIGIN=http://localhost:3000
 
-JWT_SECRET=your_jwt_secret_key
+JWT_SECRET=strong_string_value
+CSRF_SECRET=another_strong_string_value
 
-STRIPE_SECRET_KEY=sk_test_xxx
-STRIPE_WEBHOOK_SECRET=whsec_xxx
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
 NEXT_PUBLIC_BASE_URL=http://localhost:3000
+
+# for email stuff (using mailtrap for testing)
+MAILTRAP_TOKEN=your_token
+MAILTRAP_TEST_INBOX_ID=12345
 ```
 
-## Authentication Flow
+**Important:** In production, JWT_SECRET and CSRF_SECRET need to be at least 32 characters. The app will yell at you on startup if they're not.
 
-1. Register (`POST /auth/register`) creates user (password hashed by [`hashPassword`](server/utils/creatingPassword.ts)).
-2. Login (`POST /auth/login`) issues access + refresh (refresh hashed via [`hashToken`](server/utils/hashingTokens.ts) and stored by [`UserService.updateRefreshToken`](server/src/user/user.service.ts)).
-3. Authenticated requests use cookie `access_token` extracted in [`JwtStrategy`](server/src/auth/jwt.strategy.ts).
-4. Refresh (`POST /auth/refresh`) validates stored hashed token via [`compareTokens`](server/utils/hashingTokens.ts).
-5. Logout removes refresh token (`UserService.removeRefreshToken`).
+## How Auth Works
 
-## API Overview
+1. User registers at `POST /auth/register` - password gets hashed with bcrypt
+2. Login at `POST /auth/login` - returns access token (15min) + refresh token (7 days), both as cookies
+3. Access token is in a httpOnly cookie, gets extracted automatically by the JWT strategy
+4. When access token expires, hit `POST /auth/refresh` to get new tokens (old refresh token gets invalidated)
+5. Logout clears everything
 
-Authentication (`/auth`):
-- POST /register
-- POST /login
-- POST /refresh
-- POST /logout (protected)
-- GET /profile (protected)
+There's also CSRF protection on all POST/PUT/DELETE requests when you're logged in. Frontend needs to send the `X-CSRF-Token` header.
 
-Users (`/user`):
-- GET / (protected)
-- GET /:id (protected)
-- PUT /:id (protected)
-- DELETE /:id (protected)
-- PUT /changePassword/:id (protected)
+## API Endpoints
 
-Products (`/products`):
-- GET /
-- GET /search?name=term
-- GET /:id
-- POST /all (IDs array)
-- POST / (protected)
-- PUT /:id (protected)
-- DELETE /:id (protected)
+### Auth (`/auth`)
+| Method | Endpoint | Auth? | What it does |
+|--------|----------|-------|--------------|
+| POST | /register | No | Create account |
+| POST | /login | No | Get tokens |
+| POST | /refresh | No | Refresh tokens |
+| POST | /logout | Yes | Clear session |
+| GET | /profile | Yes | Get current user |
 
-Categories (`/category`):
-- GET /
-- GET /details
-- GET /details/:id
-- GET /:id
-- POST / (protected)
-- PUT /:id (protected)
-- DELETE /:id (protected)
+### Users (`/user`)
+| Method | Endpoint | Auth? | Notes |
+|--------|----------|-------|-------|
+| GET | / | Admin | List all users |
+| GET | /:id | Yes | Get user (own or admin) |
+| PUT | /:id | Yes | Update user |
+| DELETE | /:id | Yes | Delete user |
+| POST | /:id/change-password | Yes | Change password |
+| POST | /verifyEmail | Yes | Send verification email |
+| POST | /verifyEmail/confirm | No | Confirm with token |
+| POST | /resetPassword/request | No | Request password reset |
+| POST | /resetPassword/confirm | No | Reset with token |
 
-Orders (`/orders`):
-- GET /
-- GET /:id
-- POST /
-- PUT /:id
-- DELETE /:id
-(all protected)
+### Products (`/products`)
+| Method | Endpoint | Auth? |
+|--------|----------|-------|
+| GET | / | No |
+| GET | /search?name=... | No |
+| GET | /all?ids=1,2,3 | No |
+| GET | /:id | No |
+| POST | / | Admin |
+| PUT | /:id | Admin |
+| DELETE | /:id | Admin |
 
-Checkout (`/checkout`):
-- POST /finalize
-- POST /webhook
+### Categories (`/category`)
+| Method | Endpoint | Auth? |
+|--------|----------|-------|
+| GET | / | No |
+| GET | /details | No |
+| GET | /:id | No |
+| POST | / | Admin |
+| PUT | /:id | Admin |
+| DELETE | /:id | Admin |
 
-## Data Models
+### Orders (`/orders`)
+| Method | Endpoint | Auth? |
+|--------|----------|-------|
+| GET | / | Admin |
+| GET | /:id | Yes |
+| GET | /user/:userId | Yes |
+| POST | / | Yes |
+| PUT | /:id | Yes |
+| DELETE | /:id | Yes |
 
-- [`User`](server/src/typeorm/entities/User.ts)
-- [`Product`](server/src/typeorm/entities/Product.ts)
-- [`Category`](server/src/typeorm/entities/Category.ts)
-- [`Order`](server/src/typeorm/entities/Order.ts)
-- [`OrderItem`](server/src/typeorm/entities/OrderItem.ts)
+### Checkout (`/checkout`)
+| Method | Endpoint | Auth? |
+|--------|----------|-------|
+| POST | /finalize | Yes |
+| POST | /webhook | No (Stripe) |
 
-Shared interfaces in [`Interfaces.ts`](server/utils/Interfaces.ts).
+## Database Models
 
-## Validation
+Pretty standard stuff:
+- **User** - id, name, email, password, role, preferences, tokens
+- **Product** - id, name, description, price, image, stock, category
+- **Category** - id, name, products
+- **Order** - id, user, items, status, total, timestamps  
+- **OrderItem** - links orders to products with quantity and price
 
-DTOs (e.g. [`CreateProductDto`](server/src/products/dtos/CreateProductDto.ts), [`UpdateUserDto`](server/src/user/dtos/UpdateUserDto.ts), [`CreateOrderDto`](server/src/orders/dtos/CreateOrderDto.ts)) use class-validator. Transformation and whitelisting enabled in `main.ts`.
+## Stripe Payment Flow
 
-## Error Handling
+1. Frontend creates an order via `POST /orders`
+2. Then calls `POST /checkout/finalize` with the orderId
+3. Backend creates a Stripe checkout session and returns the URL
+4. User pays on Stripe's hosted page
+5. Stripe sends webhook to `/checkout/webhook`
+6. We verify the signature, check the amount, mark order as COMPLETED
 
-Consistent `HttpException` usage with meaningful status codes:
-400 invalid input, 401 unauthorized, 404 not found, 409 conflict, 500 server fault.
+Make sure to set up the webhook in Stripe dashboard pointing to your `/checkout/webhook` endpoint.
 
-## Stripe Flow
+## Security Stuff
 
-1. Create order (`OrdersService.createOrder`).
-2. Call `/checkout/finalize` passing products + orderId + userId.
-3. Session created in [`CheckoutService.finalizeCheckout`](server/src/checkout/checkout.service.ts) using user currency.
-4. Webhook `/checkout/webhook` verifies signature and sets order status to COMPLETED via [`OrdersService.updateOrder`](server/src/orders/orders.service.ts).
+Things I've implemented:
+- Passwords hashed with bcrypt (10 rounds)
+- Refresh tokens also hashed before storing
+- JWTs in httpOnly cookies (not localStorage)
+- CSRF tokens for state-changing requests
+- Rate limiting (60 req/min default, stricter on auth endpoints)
+- Helmet for security headers
+- Input validation on everything via class-validator
+- Generic error messages to prevent user enumeration
 
-## Security
+## Running Tests
 
-- Bcrypt hashing (`creatingPassword.ts`)
-- Hashed refresh tokens (`hashingTokens.ts`)
-- HTTP-only cookies
-- CORS restricted origin
-- Short-lived access tokens
-- Webhook signature verification
-- Global validation pipe
-
-## Testing
-
-Scripts:
 ```bash
-npm run test         # unit
-npm run test:cov     # coverage
-npm run test:e2e     # e2e (see jest-e2e config)
+npm run test          # unit tests
+npm run test:cov      # with coverage
+npm run test:e2e      # end to end
 ```
-
-Unit specs under `src/**/**/*.spec.ts` (e.g. comprehensive product tests in [`products.service.spec.ts`](server/src/products/products.service.spec.ts)). E2E spec in [`test/app.e2e-spec.ts`](server/test/app.e2e-spec.ts).
 
 ## Project Structure
 
 ```
 server/
-  src/
-    auth/
-    category/
-    checkout/
-    orders/
-    products/
-    user/
-    typeorm/entities/
-  utils/
-  lib/
-  test/
+├── src/
+│   ├── auth/          # login, register, jwt stuff
+│   ├── user/          # user management
+│   ├── products/      # product CRUD
+│   ├── category/      # categories
+│   ├── orders/        # order management  
+│   ├── checkout/      # stripe integration
+│   └── typeorm/
+│       └── entities/  # database models
+├── utils/             # helpers (hashing, decorators, etc)
+├── lib/               # external service configs (stripe)
+└── test/              # e2e tests
 ```
 
-## Development
+## TODO
 
-```bash
-npm run format
-npm run lint
-```
+- [ ] Add image uploads for products
+- [ ] Soft deletes instead of hard deletes
+- [ ] Better logging
+- [ ] Docker setup
+- [ ] CI/CD pipeline
 
-## Future Improvements
+---
 
-- Add pagination & sorting on product list.
-- Role-based authorization layer.
-- Soft deletes / auditing.
-- Docker & CI pipeline scripts.
+Feel free to open an issue if something's broken or doesn't make sense.
 

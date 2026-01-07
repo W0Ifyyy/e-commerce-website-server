@@ -17,10 +17,14 @@ export class AuthService {
   ) {}
   async validateUser(username: string, password: string) {
     const user = await this.usersService.findOne(username);
-    if (!user) return null;
-    let isPasswordValid = await comparePassword(password, user.password);
-    if (isPasswordValid) {
-      const { password, ...result } = user;
+    // Always perform password comparison to prevent timing attacks
+    // Use a dummy hash if user doesn't exist
+    const dummyHash = '$2b$10$dummyhashtopreventtimingattacksxxxxxxxxxxxxxxxxxxxxxxxxx';
+    const passwordToCompare = user?.password ?? dummyHash;
+    const isPasswordValid = await comparePassword(password, passwordToCompare);
+    
+    if (user && isPasswordValid) {
+      const { password: _, ...result } = user;
       return result;
     }
     return null;

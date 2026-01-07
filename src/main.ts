@@ -6,6 +6,38 @@ import * as bodyParser from 'body-parser';
 import helmet from 'helmet';
 import { csrf } from './csrf';
 
+// Validate required secrets at startup
+function validateSecrets() {
+  const requiredSecrets = [
+    { name: 'JWT_SECRET', minLength: 32 },
+    { name: 'CSRF_SECRET', minLength: 32 },
+    { name: 'STRIPE_SECRET_KEY', minLength: 10 },
+    { name: 'STRIPE_WEBHOOK_SECRET', minLength: 10 },
+  ];
+
+  const errors: string[] = [];
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  for (const { name, minLength } of requiredSecrets) {
+    const value = process.env[name];
+    if (!value) {
+      errors.push(`Missing required environment variable: ${name}`);
+    } else if (isProduction && value.length < minLength) {
+      errors.push(`${name} must be at least ${minLength} characters in production`);
+    }
+  }
+
+  if (errors.length > 0) {
+    console.error('\n❌ Security Configuration Errors:');
+    errors.forEach((err) => console.error(`   - ${err}`));
+    if (isProduction) {
+      throw new Error('Server startup aborted due to security configuration errors');
+    } else {
+      console.warn('\n⚠️  Continuing in development mode despite configuration warnings...\n');
+    }
+  }
+}
+
 function parseCorsOrigins(value: string | undefined): string[] {
   const raw = (value ?? '').trim();
   if (!raw) return ['http://localhost:3000'];
@@ -24,14 +56,31 @@ function isUnsafeMethod(method?: string): boolean {
 }
 
 async function bootstrap() {
+  // Validate secrets before starting
+  validateSecrets();
+
   const app = await NestFactory.create(AppModule);
 
   app.use(cookieParser());
 
   // Security headers
+  const isProduction = process.env.NODE_ENV === 'production';
   app.use(
     helmet({
-      contentSecurityPolicy: false,
+      contentSecurityPolicy: isProduction
+        ? {
+            directives: {
+              defaultSrc: ["'self'"],
+              scriptSrc: ["'self'"],
+              styleSrc: ["'self'", "'unsafe-inline'"],
+              imgSrc: ["'self'", 'data:', 'https:'],
+              connectSrc: ["'self'", 'https://api.stripe.com'],
+              frameSrc: ["'self'", 'https://js.stripe.com'],
+              objectSrc: ["'none'"],
+              upgradeInsecureRequests: [],
+            },
+          }
+        : false,
     }),
   );
 
