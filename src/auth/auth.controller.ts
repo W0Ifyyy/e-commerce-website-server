@@ -115,6 +115,10 @@ export class AuthController {
     res.clearCookie('access_token', { path: '/' });
     res.clearCookie('refresh_token', { path: '/auth/refresh' });
     res.clearCookie('refresh_token', { path: '/' });
+    // Clear CSRF cookies (both production and development names)
+    res.clearCookie('__Host-csrf', { path: '/' });
+    res.clearCookie('csrf_secret', { path: '/' });
+    // Clear legacy cookie name if present
     res.clearCookie('csrf_token', { path: '/' });
 
     const userId = req?.user?.userId ?? req?.user?.sub ?? req?.user?.id;
@@ -124,5 +128,18 @@ export class AuthController {
     }
 
     return this.authService.logout(userId);
+  }
+
+  /**
+   * Get a fresh CSRF token for the current session.
+   * This endpoint is protected by JWT auth and can be called after login
+   * or when the frontend needs to refresh its CSRF token.
+   */
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 30, ttl: 60 } })
+  @Get('csrf-token')
+  getCsrfToken(@Request() req, @Res({ passthrough: true }) res: Response) {
+    const csrfToken = csrf.generateCsrfToken(req, res);
+    return { csrfToken };
   }
 }
