@@ -55,6 +55,9 @@ export class AuthController {
     // CSRF token (per NestJS docs via `csrf-csrf`).
     // Frontend must send: header `x-csrf-token` with the `csrfToken` returned here.
     // The `csrfToken` cookie is an httpOnly hash managed by `csrf-csrf`.
+    // IMPORTANT: Update req.cookies with new access_token so CSRF session identifier
+    // is calculated using the NEW token that will be sent in subsequent requests.
+    req.cookies = { ...req.cookies, access_token };
     const csrfToken = csrf.generateCsrfToken(req, res);
     return { message: 'Logged in', csrfToken, csrf_token: csrfToken };
   }
@@ -98,6 +101,9 @@ export class AuthController {
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 
+    // IMPORTANT: Update req.cookies with new access_token so CSRF session identifier
+    // is calculated using the NEW token that will be sent in subsequent requests.
+    (req as any).cookies = { ...(req as any).cookies, access_token };
     const csrfToken = csrf.generateCsrfToken(req as any, res);
     return { message: 'Refreshed', csrfToken, csrf_token: csrfToken };
   }

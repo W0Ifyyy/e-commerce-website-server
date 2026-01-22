@@ -1,118 +1,138 @@
+# E-Commerce Backend 🛒
 
-# E-Commerce Backend
+Hey! This is my e-commerce api. I've been working on this for a while now and I honestly learned a ton building it. Its built with NestJS,  MySQL + TypeORM and stripe for payments.
 
-My e-commerce REST API. Built with NestJS + MySQL + Stripe. This is the backend that powers the store - handles auth, products, orders, payments, etc.
 
-## Getting Started
+## Quick Start
+
+First, get into the server folder and install everything:
 
 ```bash
 cd server
 npm install
 ```
 
-Copy `.env.example` to `.env` and fill in your values (db credentials, stripe keys, etc). Then:
+Then you gotta set up your environment variables. Copy the `.env.example` file to `.env`:
+
+```bash
+cp .env.example .env
+```
+
+Fill in your own values (database stuff, Stripe keys, etc - more on that below). After that just run:
 
 ```bash
 npm run start:dev
 ```
 
-Hit `http://localhost:5000` - server should be running!
+If everything went well, you should be able to hit `http://localhost:5000` and see something. If not... well, check the console for errors 😅
 
-## What's in here
+## What I Built
 
-- **Auth** - JWT tokens stored in httpOnly cookies, refresh token rotation, 
-- **Users** - basic CRUD, password reset via email, email verification
-- **Products & Categories** - products can belong to categories, search, pagination
-- **Orders** - create orders, track status, order items with quantities
-- **Checkout** - Stripe integration with webhooks
+So here's basically what this API does:
 
-## Tech
+- **Authentication** - Login/register with JWT tokens. Took me forever to figure out refresh tokens but got it working
+- **Users** - The usual stuff - create accounts, update profiles, reset passwords. Also added email verification
+- **Products & Categories** - Products can have categories, there's search functionality, pagination... you know, the basics
+- **Orders** - Users can create orders, admins can update status, etc
+- **Checkout** - This is where Stripe comes in. Users can actually pay for stuff!
 
-- NestJS 10
-- TypeORM + MySQL
-- Passport (JWT + local strategies)  
-- Stripe for payments
-- class-validator for DTOs
-- bcrypt for password hashing
+## Tech Stack
+
+Here's what I used:
+
+- **NestJS 10** ,
+- **TypeORM + MySQL**,
+- **Passport**,
+- **Stripe**,
+- **class-validator**,
+- **bcrypt**.
 
 ## Environment Variables
 
-Here's what you need in your `.env`:
-
-Stripe api key from here: https://dashboard.stripe.com/apikeys
-Mailtrap api keys: https://mailtrap.io
+You'll need to get:
+- Stripe keys from: https://dashboard.stripe.com/apikeys
+- Mailtrap stuff from: https://mailtrap.io (for testing emails without spamming real inboxes)
 
 ```env
+# Database
 DB_HOST=localhost
 DB_PORT=3306
 DB_USERNAME=root
 DB_PASSWORD=yourpassword
 DB_NAME=ecommerce
 
+# Server config
 PORT=5000
 NODE_ENV=development
 CORS_ORIGIN=http://localhost:3000
 
-JWT_SECRET=strong_string_value
-CSRF_SECRET=another_strong_string_value
+#They need to be strong
+JWT_SECRET=make_this_really_long_and_random
+CSRF_SECRET=this_one_too_make_it_different
 
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...
+#Stripe
+STRIPE_SECRET_KEY=sk_test_xxxxx
+STRIPE_WEBHOOK_SECRET=whsec_xxxxx
 NEXT_PUBLIC_BASE_URL=http://localhost:3000
 
-# for email stuff (using mailtrap for testing)
-MAILTRAP_TOKEN=your_token
+# Email (using Mailtrap for dev)
+MAILTRAP_TOKEN=your_token_here
 MAILTRAP_TEST_INBOX_ID=12345
 ```
 
-**Important:** In production, JWT_SECRET and CSRF_SECRET need to be at least 32 characters. The app will yell at you on startup if they're not.
+**Important** The JWT_SECRET and CSRF_SECRET need to be at least 32 characters in production or the app won't start. 
 
-## How Auth Works
+## How The Auth System Works
 
-1. User registers at `POST /auth/register` - password gets hashed with bcrypt
-2. Login at `POST /auth/login` - returns access token (15min) + refresh token (7 days), both as cookies
-3. Access token is in a httpOnly cookie, gets extracted automatically by the JWT strategy
-4. When access token expires, hit `POST /auth/refresh` to get new tokens (old refresh token gets invalidated)
-5. Logout clears everything
+1. User signs up at `POST /auth/register` → password gets hashed with bcrypt before saving
+2. Login at `POST /auth/login` → they get an access token (expires in 15 min) and a refresh token (7 days)
+3. Both tokens are stored as httpOnly cookies
+4. When the access token expires, the frontend can hit `POST /auth/refresh` to get new tokens
+5. The old refresh token gets invalidated so it can't be reused 
+6. Logout clears all the cookies.
 
-There's also CSRF protection on all POST/PUT/DELETE requests when you're logged in. Frontend needs to send the `X-CSRF-Token` header.
+Any POST/PUT/DELETE request needs the `X-CSRF-Token` header when logged in. The frontend gets this token from a cookie.
 
-## API Endpoints
+## All The API Endpoints
 
-### Auth (`/auth`)
-| Method | Endpoint | Auth? | What it does |
-|--------|----------|-------|--------------|
-| POST | /register | No | Create account |
-| POST | /login | No | Get tokens |
-| POST | /refresh | No | Refresh tokens |
-| POST | /logout | Yes | Clear session |
-| GET | /profile | Yes | Get current user |
+### Auth  (`/auth`)
+
+| Method | Endpoint | Need to be logged in? | What it does |
+|--------|----------|----------------------|--------------|
+| POST | /register | No | Create a new account |
+| POST | /login | No | Get your tokens |
+| POST | /refresh | No | Get fresh tokens |
+| POST | /logout | Yes | Clears your session |
+| GET | /profile | Yes | Get your own info |
 
 ### Users (`/user`)
-| Method | Endpoint | Auth? | Notes |
-|--------|----------|-------|-------|
-| GET | / | Admin | List all users |
-| GET | /:id | Yes | Get user (own or admin) |
-| PUT | /:id | Yes | Update user |
-| DELETE | /:id | Yes | Delete user |
-| POST | /:id/change-password | Yes | Change password |
-| POST | /verifyEmail | Yes | Send verification email |
-| POST | /verifyEmail/confirm | No | Confirm with token |
-| POST | /resetPassword/request | No | Request password reset |
-| POST | /resetPassword/confirm | No | Reset with token |
+
+| Method | Endpoint | Who can use it? | Notes |
+|--------|----------|-----------------|-------|
+| GET | / | Admin only | List everyone |
+| GET | /:id | Owner or Admin | Get one user |
+| PUT | /:id | Owner or Admin | Update user |
+| DELETE | /:id | Owner or Admin | Delete (be careful!) |
+| POST | /:id/change-password | Owner | Change your password |
+| POST | /verifyEmail | Logged in | Send verification email |
+| POST | /verifyEmail/confirm | Anyone | Click the link from email |
+| POST | /resetPassword/request | Anyone | "Forgot password" |
+| POST | /resetPassword/confirm | Anyone | Set new password with token |
 
 ### Products (`/products`)
+
 | Method | Endpoint | Auth? |
 |--------|----------|-------|
-| GET | / | No |
-| GET | /search?name=... | No |
+| GET | / | No, public |
+| GET | /search?name=shoe | No |
 | GET | /all?ids=1,2,3 | No |
 | GET | /:id | No |
-| POST | / | Admin |
-| PUT | /:id | Admin |
-| DELETE | /:id | Admin |
+| POST | / | Admin only |
+| PUT | /:id | Admin only |
+| DELETE | /:id | Admin only |
 
 ### Categories (`/category`)
+
 | Method | Endpoint | Auth? |
 |--------|----------|-------|
 | GET | / | No |
@@ -123,88 +143,87 @@ There's also CSRF protection on all POST/PUT/DELETE requests when you're logged 
 | DELETE | /:id | Admin |
 
 ### Orders (`/orders`)
+
 | Method | Endpoint | Auth? |
 |--------|----------|-------|
-| GET | / | Admin |
-| GET | /:id | Yes |
-| GET | /user/:userId | Yes |
-| POST | / | Yes |
-| PUT | /:id | Yes |
-| DELETE | /:id | Yes |
+| GET | / | Admin (gets all orders) |
+| GET | /:id | Owner or Admin |
+| GET | /user/:userId | Owner or Admin |
+| POST | / | Logged in |
+| PUT | /:id | Owner or Admin |
+| DELETE | /:id | Owner or Admin |
 
 ### Checkout (`/checkout`)
-| Method | Endpoint | Auth? |
+
+| Method | Endpoint | Notes |
 |--------|----------|-------|
-| POST | /finalize | Yes |
-| POST | /webhook | No (Stripe) |
+| POST | /finalize | Logged in - starts the Stripe payment |
+| POST | /webhook | Called by Stripe, not you |
 
-## Database Models
+## Database
 
-Pretty standard stuff:
-- **User** - id, name, email, password, role, preferences, tokens
-- **Product** - id, name, description, price, image, stock, category
-- **Category** - id, name, products
-- **Order** - id, user, items, status, total, timestamps  
-- **OrderItem** - links orders to products with quantity and price
+- **User** - id, name, email, password, role, emailVerified, refreshToken
+- **Product** - id, name, description, price, imageUrl, stock, categoryId
+- **Category** - id, name
+- **Order** - id, userId, status, total, createdAt, updatedAt
+- **OrderItem** - id, orderId, productId, quantity, priceAtPurchase
 
-## Stripe Payment Flow
+## How Payments Work (Stripe)
 
-1. Frontend creates an order via `POST /orders`
-2. Then calls `POST /checkout/finalize` with the orderId
-3. Backend creates a Stripe checkout session and returns the URL
-4. User pays on Stripe's hosted page
-5. Stripe sends webhook to `/checkout/webhook`
-6. We verify the signature, check the amount, mark order as COMPLETED
+1. User adds products to cart on frontend
+2. They create an order → `POST /orders`
+3. Frontend calls `POST /checkout/finalize` with the orderId
+4. Backend creates a Stripe Checkout Session and sends back the URL
+5. User gets redirected to Stripe's payment page
+6. After they pay, Stripe calls our webhook at `/checkout/webhook`
+7. We verify the Stripe webhook signature, check the amount, then mark the order as COMPLETED
 
-Make sure to set up the webhook in Stripe dashboard pointing to your `/checkout/webhook` endpoint.
+**Don't forget:** Set up the webhook in Stripe and point it to `/checkout/webhook`. For local testing, you can use Stripe CLI.
 
-## Security Stuff
+## Security Things 
 
-Things I've implemented:
-- Passwords hashed with bcrypt (10 rounds)
-- Refresh tokens also hashed before storing
-- JWTs in httpOnly cookies (not localStorage)
-- CSRF tokens for state-changing requests
-- Rate limiting (60 req/min default, stricter on auth endpoints)
+
+- Passwords hashed with bcrypt (10 salt rounds)
+- Refresh tokens are also hashed before storing in DB
+- JWTs stored in httpOnly cookies so JavaScript can't access them
+- CSRF tokens required for all state-changing requests
+- Rate limiting - 60 requests per minute normally, way stricter on login/register
 - Helmet for security headers
-- Input validation on everything via class-validator
-- Generic error messages to prevent user enumeration
+- All inputs validated with class-validator
 
 ## Running Tests
 
 ```bash
-npm run test          # unit tests
-npm run test:cov      # with coverage
-npm run test:e2e      # end to end
+npm run test         
+npm run test:cov      
+npm run test:e2e     
 ```
 
-## Project Structure
+## Folder Structure
 
 ```
 server/
 ├── src/
-│   ├── auth/          # login, register, jwt stuff
-│   ├── user/          # user management
-│   ├── products/      # product CRUD
-│   ├── category/      # categories
-│   ├── orders/        # order management  
+│   ├── auth/          # all the login/register/jwt logic
+│   ├── user/          # user CRUD and profile stuff
+│   ├── products/      # product endpoints
+│   ├── category/      # category endpoints
+│   ├── orders/        # order management
 │   ├── checkout/      # stripe integration
 │   └── typeorm/
-│       └── entities/  # database models
-├── utils/             # helpers (hashing, decorators, etc)
-├── lib/               # external service configs (stripe)
-└── test/              # e2e tests
+│       └── entities/  # database models (User, Product, etc)
+├── utils/             # random helpers - hashing, decorators, etc
+├── lib/               # external stuff like stripe config
+└── test/              # e2e tests live here
 ```
 
-## TODO
+## Things I Still Wanna Do
 
-- [ ] Add image uploads for products
-- [ ] Soft deletes instead of hard deletes
-- [ ] Better logging
-- [ ] Docker setup
-- [ ] CI/CD pipeline
+- [ ] Docker setup so deployment is easier
+- [ ] Maybe add product reviews?
 
----
+## Bugs? Questions?
 
-Feel free to open an issue if something's broken or doesn't make sense.
+If something doesn't work or you're confused about something, feel free to open an issue. Im still learning after all!
+
 

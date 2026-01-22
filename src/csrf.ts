@@ -7,19 +7,9 @@ if (!csrfSecret && process.env.NODE_ENV === 'production') {
 }
 const effectiveCsrfSecret = csrfSecret ?? crypto.randomBytes(32).toString('hex');
 
-// Hash function for session identifier
-function hashForSession(value: string): string {
-  return crypto.createHash('sha256').update(value).digest('hex').substring(0, 16);
-}
-
 export const csrf = doubleCsrf({
   getSecret: () => effectiveCsrfSecret,
-  getSessionIdentifier: (req) => {
-    // Include hashed access token for stronger session binding
-    const accessToken = (req as any)?.cookies?.access_token ?? '';
-    const tokenHash = accessToken ? hashForSession(accessToken) : 'anonymous';
-    return `${tokenHash}|${req.headers?.['user-agent'] ?? ''}`;
-  },
+  getSessionIdentifier: () => 'static-session',
   cookieName: 'csrf_token',
   cookieOptions: {
     httpOnly: true,
