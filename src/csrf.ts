@@ -46,6 +46,8 @@ export const csrf = doubleCsrf({
     // Skip CSRF check for safe methods (GET, HEAD, OPTIONS)
     if (!isUnsafe) return true;
 
+    if(req.originalUrl?.startsWith("/user/verifyEmail/confirm")) return true;
+    
     // Skip for Stripe webhooks (they have their own signature verification)
     if (req.originalUrl?.startsWith('/checkout/webhook')) return true;
 

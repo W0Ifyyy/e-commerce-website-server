@@ -91,12 +91,17 @@ describe('AuthService', () => {
 
     it('should return null when user does not exist', async () => {
       mockUserService.findOne.mockResolvedValue(null);
+      (comparePassword as jest.Mock).mockResolvedValue(false);
 
       const result = await service.validateUser('nonexistent', 'password123');
 
       expect(result).toBeNull();
       expect(mockUserService.findOne).toHaveBeenCalledWith('nonexistent');
-      expect(comparePassword).not.toHaveBeenCalled();
+      // comparePassword is always called (with dummy hash) to prevent timing attacks
+      expect(comparePassword).toHaveBeenCalledWith(
+        'password123',
+        '$2b$10$dummyhashtopreventtimingattacksxxxxxxxxxxxxxxxxxxxxxxxxx',
+      );
     });
 
     it('should return null when password is invalid', async () => {

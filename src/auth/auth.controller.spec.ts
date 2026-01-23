@@ -134,16 +134,16 @@ describe('AuthController', () => {
       );
     });
 
-    it('should set csrf_token cookie with correct options', async () => {
+    it('should set csrf_secret cookie with correct options', async () => {
       await controller.login(mockRequest as Request, mockResponse as Response);
 
       expect(mockResponse.cookie).toHaveBeenCalledWith(
-        'csrf_token',
+        'csrf_secret',
         expect.any(String),
         {
           httpOnly: true,
           secure: false,
-          sameSite: 'lax',
+          sameSite: 'strict',
           path: '/',
           maxAge: 1000 * 60 * 60 * 24 * 7,
         },
@@ -404,7 +404,7 @@ describe('AuthController', () => {
 
       // CSRF cookie is set by csrf-csrf internals
       expect(mockResponse.cookie).toHaveBeenCalledWith(
-        'csrf_token',
+        'csrf_secret',
         expect.any(String),
         expect.objectContaining({ httpOnly: true }),
       );
@@ -547,7 +547,7 @@ describe('AuthController', () => {
     it('should clear all cookies', async () => {
       await controller.logout(mockRequest as Request, mockResponse as Response);
 
-      expect(mockResponse.clearCookie).toHaveBeenCalledTimes(4);
+      expect(mockResponse.clearCookie).toHaveBeenCalledTimes(6);
     });
 
     it('should call authService.logout with user id from JWT payload', async () => {
@@ -596,7 +596,7 @@ describe('AuthController', () => {
         UnauthorizedException,
       );
 
-      expect(mockResponse.clearCookie).toHaveBeenCalledTimes(4);
+      expect(mockResponse.clearCookie).toHaveBeenCalledTimes(6);
       expect(mockAuthService.logout).not.toHaveBeenCalled();
     });
 
@@ -607,7 +607,7 @@ describe('AuthController', () => {
         controller.logout(mockRequest as Request, mockResponse as Response),
       ).toThrow(UnauthorizedException);
 
-      expect(mockResponse.clearCookie).toHaveBeenCalledTimes(4);
+      expect(mockResponse.clearCookie).toHaveBeenCalledTimes(6);
       expect(mockAuthService.logout).not.toHaveBeenCalled();
     });
 
@@ -626,7 +626,7 @@ describe('AuthController', () => {
 
       await controller.logout(mockRequest as Request, mockResponse as Response);
 
-      expect(callOrder.filter((c) => c === 'clearCookie')).toHaveLength(4);
+      expect(callOrder.filter((c) => c === 'clearCookie')).toHaveLength(6);
       expect(callOrder[callOrder.length - 1]).toBe('logout');
     });
 
@@ -648,7 +648,7 @@ describe('AuthController', () => {
         // Expected to throw
       }
 
-      expect(mockResponse.clearCookie).toHaveBeenCalledTimes(4);
+      expect(mockResponse.clearCookie).toHaveBeenCalledTimes(6);
     });
   });
 });

@@ -151,7 +151,7 @@ describe('UserService', () => {
 
       await expect(service.createUser(mockParams)).rejects.toThrow(
         new HttpException(
-          'User with that email already exists!',
+          'Unable to create account. Please try again or contact support.',
           HttpStatus.CONFLICT,
         ),
       );
@@ -358,6 +358,7 @@ describe('UserService', () => {
       );
       expect(creatingPassword.hashPassword).toHaveBeenCalledWith('newPlain');
       expect(mockRepository.update).toHaveBeenCalledWith(10, {
+        refreshToken: null,
         password: 'hashedNew',
       });
     });
@@ -696,6 +697,7 @@ describe('UserService', () => {
         password: 'hashedNew',
         forgetPasswordToken: null,
         forgetPasswordTokenExpiry: null,
+        refreshToken: null,
       });
     });
   });

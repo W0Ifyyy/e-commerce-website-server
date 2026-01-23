@@ -1,4 +1,3 @@
-// mock auth helper used in OrdersService
 jest.mock('utils/canAccess', () => ({
   canAccessUser: jest.fn(),
 }));

@@ -70,11 +70,9 @@ describe('OrdersController', () => {
       };
 
       mockOrdersService.getAllOrders.mockResolvedValue(mockResponse);
-      (canAccess as jest.Mock).mockImplementation(() => undefined);
 
-      const result = await controller.getOrders(mockReq);
+      const result = await controller.getOrders();
 
-      expect(canAccess).toHaveBeenCalledWith(mockReq);
       expect(result).toEqual(mockResponse);
       expect(mockOrdersService.getAllOrders).toHaveBeenCalledTimes(1);
       expect(mockOrdersService.getAllOrders).toHaveBeenCalledWith();
@@ -84,11 +82,9 @@ describe('OrdersController', () => {
       const mockResponse = { msg: 'Orders retrieved successfully', orders: [] };
 
       mockOrdersService.getAllOrders.mockResolvedValue(mockResponse);
-      (canAccess as jest.Mock).mockImplementation(() => undefined);
 
-      const result = await controller.getOrders(mockReq);
+      const result = await controller.getOrders();
 
-      expect(canAccess).toHaveBeenCalledWith(mockReq);
       expect(result).toEqual(mockResponse);
       expect(result.orders).toHaveLength(0);
     });
@@ -99,10 +95,9 @@ describe('OrdersController', () => {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
       mockOrdersService.getAllOrders.mockRejectedValue(error);
-      (canAccess as jest.Mock).mockImplementation(() => undefined);
 
-      await expect(controller.getOrders(mockReq)).rejects.toThrow(HttpException);
-      await expect(controller.getOrders(mockReq)).rejects.toThrow(
+      await expect(controller.getOrders()).rejects.toThrow(HttpException);
+      await expect(controller.getOrders()).rejects.toThrow(
         'Database error',
       );
     });
@@ -111,20 +106,10 @@ describe('OrdersController', () => {
       mockOrdersService.getAllOrders.mockRejectedValue(
         new Error('Unexpected error'),
       );
-      (canAccess as jest.Mock).mockImplementation(() => undefined);
 
-      await expect(controller.getOrders(mockReq)).rejects.toThrow(
+      await expect(controller.getOrders()).rejects.toThrow(
         'Unexpected error',
       );
-    });
-
-    it('should throw Unauthorized when canAccess throws', () => {
-      (canAccess as jest.Mock).mockImplementation(() => {
-        throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
-      });
-
-      expect(() => controller.getOrders(mockReq)).toThrow(HttpException);
-      expect(() => controller.getOrders(mockReq)).toThrow('Unauthorized');
     });
   });
 

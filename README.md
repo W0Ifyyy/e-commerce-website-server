@@ -1,9 +1,11 @@
 # E-Commerce Backend 🛒
 
-Hey! This is my e-commerce api. I've been working on this for a while now and I honestly learned a ton building it. Its built with NestJS,  MySQL + TypeORM and stripe for payments.
+Hey! This is my e-commerce API. I've been working on this for a while now and I honestly learned a ton building it. It's built with NestJS, MySQL + TypeORM and Stripe for payments.
 
 
 ## Quick Start
+
+You need MySQL running locally and a database created (whatever you put in `DB_NAME`).
 
 First, get into the server folder and install everything:
 
@@ -14,27 +16,36 @@ npm install
 
 Then you gotta set up your environment variables. Copy the `.env.example` file to `.env`:
 
-```bash
-cp .env.example .env
-```
-
 Fill in your own values (database stuff, Stripe keys, etc - more on that below). After that just run:
 
 ```bash
 npm run start:dev
 ```
 
-If everything went well, you should be able to hit `http://localhost:5000` and see something. If not... well, check the console for errors 😅
+For a production run (builds then starts compiled output):
+
+```bash
+npm run start:prod
+```
+
+That one expects you to build first:
+
+```bash
+npm run build
+npm run start:prod
+```
+
+If everything went well, you should be able to hit `http://localhost:5000`.
 
 ## What I Built
 
 So here's basically what this API does:
 
-- **Authentication** - Login/register with JWT tokens. Took me forever to figure out refresh tokens but got it working
+- **Authentication** - Login/register with JWT tokens.
 - **Users** - The usual stuff - create accounts, update profiles, reset passwords. Also added email verification
-- **Products & Categories** - Products can have categories, there's search functionality, pagination... you know, the basics
-- **Orders** - Users can create orders, admins can update status, etc
-- **Checkout** - This is where Stripe comes in. Users can actually pay for stuff!
+- **Products & Categories** - Products can have categories, there's search functionality, pagination...
+- **Orders** - Create orders, update status, and fetch order history (owner/admin checks).
+- **Checkout** - Stripe Checkout Sessions + webhook to confirm payment and mark orders completed.
 
 ## Tech Stack
 
@@ -64,7 +75,9 @@ DB_NAME=ecommerce
 # Server config
 PORT=5000
 NODE_ENV=development
-CORS_ORIGIN=http://localhost:3000
+
+# CORS (comma-separated origins, optional - defaults to http://localhost:3000)
+# CORS_ORIGIN=http://localhost:3000,https://yourdomain.com
 
 #They need to be strong
 JWT_SECRET=make_this_really_long_and_random
@@ -91,7 +104,9 @@ MAILTRAP_TEST_INBOX_ID=12345
 5. The old refresh token gets invalidated so it can't be reused 
 6. Logout clears all the cookies.
 
-Any POST/PUT/DELETE request needs the `X-CSRF-Token` header when logged in. The frontend gets this token from a cookie.
+Any POST/PUT/PATCH/DELETE request needs the `x-csrf-token` header when logged in. The frontend gets the token from `GET /auth/csrf-token`.
+
+Update: the frontend grabs the CSRF token from `GET /auth/csrf-token` (and stores it client-side). You still don’t need to think about it much — just don’t forget the header exists.
 
 ## All The API Endpoints
 
@@ -104,6 +119,7 @@ Any POST/PUT/DELETE request needs the `X-CSRF-Token` header when logged in. The 
 | POST | /refresh | No | Get fresh tokens |
 | POST | /logout | Yes | Clears your session |
 | GET | /profile | Yes | Get your own info |
+| GET | /csrf-token | Yes | Get a CSRF token for your current session |
 
 ### Users (`/user`)
 
@@ -180,6 +196,8 @@ Any POST/PUT/DELETE request needs the `X-CSRF-Token` header when logged in. The 
 
 **Don't forget:** Set up the webhook in Stripe and point it to `/checkout/webhook`. For local testing, you can use Stripe CLI.
 
+One more tiny gotcha: the webhook needs the **raw request body**. This repo already handles that, so if you refactor middleware later, don’t accidentally break it.
+
 ## Security Things 
 
 
@@ -224,6 +242,6 @@ server/
 
 ## Bugs? Questions?
 
-If something doesn't work or you're confused about something, feel free to open an issue. Im still learning after all!
+If something doesn't work or you're confused about something, feel free to open an issue. I'm still learning after all!
 
 
