@@ -196,7 +196,7 @@ Update: the frontend grabs the CSRF token from `GET /auth/csrf-token` (and store
 
 **Don't forget:** Set up the webhook in Stripe and point it to `/checkout/webhook`. For local testing, you can use Stripe CLI.
 
-One more tiny gotcha: the webhook needs the **raw request body**. This repo already handles that, so if you refactor middleware later, don’t accidentally break it.
+One tiny thing: the webhook needs the **raw request body**. This repo already handles that, so if you refactor middleware later, don’t accidentally break it.
 
 ## Security Things 
 
