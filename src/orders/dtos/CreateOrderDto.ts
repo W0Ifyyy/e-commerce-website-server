@@ -1,8 +1,6 @@
 import { Type } from 'class-transformer';
 import {
   IsArray,
-  IsEnum,
-  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
@@ -34,13 +32,4 @@ export class CreateOrderDto {
   @ValidateNested({ each: true })
   @Type(() => OrderItemDto)
   items: OrderItemDto[];
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0, { message: 'Total amount must be at least 0' })
-  totalAmount?: number;
-
-  @IsOptional()
-  @IsEnum(['PENDING', 'COMPLETED', 'CANCELED'], { message: 'Invalid status' })
-  status?: 'PENDING' | 'COMPLETED' | 'CANCELED';
 }

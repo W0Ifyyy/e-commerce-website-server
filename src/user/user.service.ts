@@ -69,7 +69,7 @@ export class UserService {
         user: { ...newUser, password: null },
       };
     } catch (error: any) {
-      console.log(error);
+      this.logger.error('Failed to create user', (error as any)?.stack ?? String(error));
       throw new HttpException(
         'An error occurred while creating the user.',
         HttpStatus.INTERNAL_SERVER_ERROR,

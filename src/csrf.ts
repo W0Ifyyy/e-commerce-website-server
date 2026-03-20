@@ -5,32 +5,34 @@ const csrfSecret = process.env.CSRF_SECRET;
 if (!csrfSecret && process.env.NODE_ENV === 'production') {
   throw new Error('CSRF_SECRET is required in production');
 }
-const effectiveCsrfSecret = csrfSecret ?? crypto.randomBytes(32).toString('hex');
+// In development, prefer a stable fallback so hot-reloads don't invalidate existing CSRF tokens.
+const effectiveCsrfSecret =
+  csrfSecret ??
+  (process.env.NODE_ENV === 'production'
+    ? crypto.randomBytes(32).toString('hex')
+    : 'dev_csrf_secret__set_CSRF_SECRET');
 
-const isProduction = process.env.NODE_ENV === 'production';
+// Hash function for session identifier
+function hashForSession(value: string): string {
+  return crypto.createHash('sha256').update(value).digest('hex').substring(0, 16);
+}
 
 export const csrf = doubleCsrf({
   getSecret: () => effectiveCsrfSecret,
-  // Use access_token as session identifier for per-session CSRF tokens
   getSessionIdentifier: (req) => {
-    const accessToken = (req as any)?.cookies?.access_token;
-    // Return a hash of the access token or a fallback for unauthenticated requests
-    if (accessToken) {
-      return crypto.createHash('sha256').update(accessToken).digest('hex').slice(0, 32);
-    }
-    return 'anonymous-session';
+    // Include hashed access token for stronger session binding
+    const accessToken = (req as any)?.cookies?.access_token ?? '';
+    const tokenHash = accessToken ? hashForSession(accessToken) : 'anonymous';
+    return `${tokenHash}|${req.headers?.['user-agent'] ?? ''}`;
   },
-  // Use __Host- prefix in production for extra security (requires secure + path=/)
-  // In development, use a simple name since __Host- requires HTTPS
-  cookieName: isProduction ? '__Host-csrf' : 'csrf_secret',
+  cookieName: 'csrf_token',
   cookieOptions: {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: 'strict',
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
     path: '/',
-    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+    maxAge: 1000 * 60 * 60 * 24 * 7,
   },
-  // The token sent by the frontend in the header
   getCsrfTokenFromRequest: (req) => req.headers?.['x-csrf-token'] as string,
   errorConfig: {
     statusCode: 403,
@@ -43,15 +45,10 @@ export const csrf = doubleCsrf({
       method === 'PUT' ||
       method === 'PATCH' ||
       method === 'DELETE';
-    // Skip CSRF check for safe methods (GET, HEAD, OPTIONS)
     if (!isUnsafe) return true;
 
-    if(req.originalUrl?.startsWith("/user/verifyEmail/confirm")) return true;
-    
-    // Skip for Stripe webhooks (they have their own signature verification)
     if (req.originalUrl?.startsWith('/checkout/webhook')) return true;
 
-    // Only require CSRF for authenticated requests
     const hasAuthCookie = Boolean((req as any)?.cookies?.access_token);
     return !hasAuthCookie;
   },

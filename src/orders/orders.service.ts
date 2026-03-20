@@ -191,12 +191,13 @@ export class OrdersService {
         return sum + unitPrice * quantity;
       }, 0);
 
+      // Orders are always created as PENDING - status changes only via payment webhook or admin
       const order = this.orderRepository.create({
         name: createOrderParams.name,
         user,
         items: orderItems,
         totalAmount: computedTotal,
-        status: createOrderParams.status || 'PENDING',
+        status: 'PENDING',
       });
 
       const savedOrder = await this.orderRepository.save(order);
@@ -244,11 +245,30 @@ export class OrdersService {
         order.name = updateOrderParams.name;
       }
 
+      // Only admins can modify status and totalAmount to prevent payment bypass
+      const isAdmin = (req as any)?.user?.role === 'admin';
+
       if (updateOrderParams.status !== undefined) {
+        if (!isAdmin) {
+          // Users can only cancel their pending orders
+          if (updateOrderParams.status !== 'CANCELED' || order.status !== 'PENDING') {
+            throw new HttpException(
+              'Users can only cancel pending orders',
+              HttpStatus.FORBIDDEN,
+            );
+          }
+        }
         order.status = updateOrderParams.status;
       }
 
-      if (updateOrderParams.totalAmount !== undefined) {
+      // totalAmount can only be modified by admins - users cannot bypass payment
+      if (updateOrderParams.totalAmount !== undefined && !isAdmin) {
+        throw new HttpException(
+          'Users cannot modify order total amount',
+          HttpStatus.FORBIDDEN,
+        );
+      }
+      if (updateOrderParams.totalAmount !== undefined && isAdmin) {
         order.totalAmount = updateOrderParams.totalAmount;
       }
 
@@ -283,18 +303,17 @@ export class OrdersService {
     if (id <= 0 || !id)
       throw new HttpException('Invalid Order ID', HttpStatus.BAD_REQUEST);
     try {
-      let order = await this.orderRepository.findOne({where: {id}});
+      let order = await this.orderRepository.findOne({
+        where: {id},
+        relations: ['user'],
+      });
       if(!order) throw new HttpException(
           "The order you're trying to delete does not exist!",
           HttpStatus.NOT_FOUND,
         );
       canAccessUser(req, order.user.id);
-      let result = await this.orderRepository.delete(id);
-      if (result.affected === 0)
-        throw new HttpException(
-          "The order you're trying to delete does not exist!",
-          HttpStatus.NOT_FOUND,
-        );
+      // Use remove() instead of delete() to prevent TOCTOU race condition
+      await this.orderRepository.remove(order);
       return { msg: 'Order deleted successfully', statusCode: 200 };
     } catch (error: any) {
       if (error instanceof HttpException) throw error;
