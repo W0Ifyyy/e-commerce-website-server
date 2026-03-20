@@ -267,7 +267,7 @@ describe('CategoryService', () => {
 
       const result = await service.createCategory(createCategoryParams);
 
-      expect(result).toEqual({ msg: 'Category created succesfully!' });
+      expect(result).toEqual({ message: 'Category created successfully!' });
       expect(mockCategoryRepository.findOne).toHaveBeenCalledWith({
         where: { name: createCategoryParams.name },
       });
@@ -315,7 +315,7 @@ describe('CategoryService', () => {
 
       const result = await service.createCategory(minimalParams);
 
-      expect(result.msg).toBe('Category created succesfully!');
+      expect(result.message).toBe('Category created successfully!');
       expect(mockCategoryRepository.create).toHaveBeenCalledWith(minimalParams);
     });
 
@@ -362,7 +362,7 @@ describe('CategoryService', () => {
 
       const result = await service.deleteCategory(1);
 
-      expect(result).toEqual({ msg: 'Category deleted succesfully!' });
+      expect(result).toEqual({ message: 'Category deleted successfully!' });
       expect(mockCategoryRepository.findOne).toHaveBeenCalledWith({
         where: { id: 1 },
       });
@@ -453,8 +453,7 @@ describe('CategoryService', () => {
       const result = await service.updateCategory(1, updateCategoryParams);
 
       expect(result).toEqual({
-        msg: 'Category updated succesfully!',
-        statusCode: 200,
+        message: 'Category updated successfully!',
       });
       expect(mockCategoryRepository.findOne).toHaveBeenCalledWith({
         where: { id: 1 },
@@ -519,7 +518,7 @@ describe('CategoryService', () => {
 
       const result = await service.updateCategory(1, partialParams);
 
-      expect(result.msg).toBe('Category updated succesfully!');
+      expect(result.message).toBe('Category updated successfully!');
       expect(mockCategoryRepository.update).toHaveBeenCalledWith(
         { id: 1 },
         partialParams,
@@ -532,7 +531,7 @@ describe('CategoryService', () => {
 
       const result = await service.updateCategory(1, {});
 
-      expect(result.msg).toBe('Category updated succesfully!');
+      expect(result.message).toBe('Category updated successfully!');
       expect(mockCategoryRepository.update).toHaveBeenCalledWith({ id: 1 }, {});
     });
 

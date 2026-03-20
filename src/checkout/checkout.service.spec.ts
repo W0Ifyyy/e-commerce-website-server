@@ -419,7 +419,8 @@ describe('CheckoutService', () => {
     });
 
     it('should log error message when webhook fails', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      const { Logger } = require('@nestjs/common');
+      const loggerErrorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation();
       const error = new Error('Webhook processing failed');
       (stripe.webhooks.constructEvent as jest.Mock).mockImplementation(() => {
         throw error;
@@ -429,11 +430,11 @@ describe('CheckoutService', () => {
         service.handleWebhookEvent(mockSignature, mockPayload),
       ).rejects.toThrow('Webhook processing failed');
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        'Webhook Error: Webhook processing failed',
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        'Webhook error: Webhook processing failed',
       );
 
-      consoleErrorSpy.mockRestore();
+      loggerErrorSpy.mockRestore();
     });
 
     it('should propagate OrdersService errors', async () => {

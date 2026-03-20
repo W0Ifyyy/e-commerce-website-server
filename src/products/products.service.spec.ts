@@ -477,7 +477,7 @@ describe('ProductsService', () => {
 
       const result = await service.createProduct(createProductParams as any);
 
-      expect(result).toEqual({ msg: 'Product created succesfully!' });
+      expect(result).toEqual({ message: 'Product created successfully!' });
       expect(mockProductRepository.findOne).toHaveBeenCalledWith({
         where: { name: createProductParams.name },
       });
@@ -557,7 +557,7 @@ describe('ProductsService', () => {
 
       const result = await service.deleteProduct(mockProduct.id);
 
-      expect(result).toEqual({ msg: 'Product deleted succesfully!', statusCode: 200 });
+      expect(result).toEqual({ message: 'Product deleted successfully!' });
       expect(mockProductRepository.findOne).toHaveBeenCalledWith({ where: { id: mockProduct.id } });
       expect(mockProductRepository.delete).toHaveBeenCalledWith({ id: mockProduct.id });
     });
@@ -614,7 +614,7 @@ describe('ProductsService', () => {
 
       const result = await service.updateProduct(mockProduct.id, updateParams as any);
 
-      expect(result).toEqual({ msg: 'Product updated succesfully!', statusCode: 200 });
+      expect(result).toEqual({ message: 'Product updated successfully!' });
       expect(mockProductRepository.findOne).toHaveBeenCalledWith({ where: { id: mockProduct.id } });
       expect(mockCategoryService.getCategoryById).toHaveBeenCalledWith(updateParams.category);
       expect(mockProductRepository.save).toHaveBeenCalledWith({

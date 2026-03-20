@@ -2,6 +2,7 @@ import {
   Injectable,
   HttpException,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import { stripe } from '../../lib/stripe';
 import { OrdersService } from 'src/orders/orders.service';
@@ -9,6 +10,8 @@ import { UserService } from 'src/user/user.service';
 
 @Injectable()
 export class CheckoutService {
+  private readonly logger = new Logger(CheckoutService.name);
+
   constructor(
     private readonly ordersService: OrdersService,
     private readonly userService: UserService,
@@ -127,7 +130,7 @@ export class CheckoutService {
 
       return { received: true };
     } catch (err) {
-      console.error(`Webhook Error: ${err.message}`);
+      this.logger.error(`Webhook error: ${err.message}`);
       throw err;
     }
   }

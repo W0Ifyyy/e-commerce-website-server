@@ -238,7 +238,7 @@ describe('CategoryController', () => {
     };
 
     it('should create a category successfully', async () => {
-      const mockResponse = { msg: 'Category created succesfully!' };
+      const mockResponse = { message: 'Category created successfully!' };
       mockCategoryService.createCategory.mockResolvedValue(mockResponse);
 
       const result = await controller.createCategory(createCategoryDto);
@@ -252,7 +252,7 @@ describe('CategoryController', () => {
 
     it('should pass DTO to service correctly', async () => {
       mockCategoryService.createCategory.mockResolvedValue({
-        msg: 'Category created succesfully!',
+        message: 'Category created successfully!',
       });
 
       await controller.createCategory(createCategoryDto);
@@ -268,12 +268,12 @@ describe('CategoryController', () => {
         imageUrl: 'https://example.com/minimal.jpg',
       };
       mockCategoryService.createCategory.mockResolvedValue({
-        msg: 'Category created succesfully!',
+        message: 'Category created successfully!',
       });
 
       const result = await controller.createCategory(minimalDto);
 
-      expect(result.msg).toBe('Category created succesfully!');
+      expect(result.message).toBe('Category created successfully!');
       expect(mockCategoryService.createCategory).toHaveBeenCalledWith(minimalDto);
     });
 
@@ -307,7 +307,7 @@ describe('CategoryController', () => {
         imageUrl: 'https://example.com/special.jpg',
       };
       mockCategoryService.createCategory.mockResolvedValue({
-        msg: 'Category created succesfully!',
+        message: 'Category created successfully!',
       });
 
       await controller.createCategory(specialDto);
@@ -318,7 +318,7 @@ describe('CategoryController', () => {
 
   describe('deleteCategory', () => {
     it('should delete a category successfully', async () => {
-      const mockResponse = { msg: 'Category deleted succesfully!' };
+      const mockResponse = { message: 'Category deleted successfully!' };
       mockCategoryService.deleteCategory.mockResolvedValue(mockResponse);
 
       const result = await controller.deleteCategory(1);
@@ -330,7 +330,7 @@ describe('CategoryController', () => {
 
     it('should pass correct id to service', async () => {
       mockCategoryService.deleteCategory.mockResolvedValue({
-        msg: 'Category deleted succesfully!',
+        message: 'Category deleted successfully!',
       });
 
       await controller.deleteCategory(42);
@@ -377,7 +377,7 @@ describe('CategoryController', () => {
 
     it('should update a category successfully', async () => {
       const mockResponse = {
-        msg: 'Category updated succesfully!',
+        message: 'Category updated successfully!',
         statusCode: 200,
       };
       mockCategoryService.updateCategory.mockResolvedValue(mockResponse);
@@ -394,7 +394,7 @@ describe('CategoryController', () => {
 
     it('should pass id and DTO correctly to service', async () => {
       mockCategoryService.updateCategory.mockResolvedValue({
-        msg: 'Category updated succesfully!',
+        message: 'Category updated successfully!',
         statusCode: 200,
       });
 
@@ -409,7 +409,7 @@ describe('CategoryController', () => {
     it('should handle partial updates - name only', async () => {
       const partialDto: UpdateCategoryDto = { name: 'New Name' };
       mockCategoryService.updateCategory.mockResolvedValue({
-        msg: 'Category updated succesfully!',
+        message: 'Category updated successfully!',
         statusCode: 200,
       });
 
@@ -426,7 +426,7 @@ describe('CategoryController', () => {
         imageUrl: 'https://example.com/new-image.jpg',
       };
       mockCategoryService.updateCategory.mockResolvedValue({
-        msg: 'Category updated succesfully!',
+        message: 'Category updated successfully!',
         statusCode: 200,
       });
 
@@ -441,7 +441,7 @@ describe('CategoryController', () => {
     it('should handle empty update DTO', async () => {
       const emptyDto: UpdateCategoryDto = {};
       mockCategoryService.updateCategory.mockResolvedValue({
-        msg: 'Category updated succesfully!',
+        message: 'Category updated successfully!',
         statusCode: 200,
       });
 

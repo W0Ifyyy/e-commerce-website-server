@@ -17,8 +17,9 @@ import { CreateProductDto } from 'src/products/dtos/CreateProductDto';
 import { UpdateProductDto } from 'src/products/dtos/UpdateProductDto';
 import { Public } from 'utils/publicDecorator';
 import { Roles } from 'utils/rolesDecorator';
+import { ApiTags } from '@nestjs/swagger';
 
-//add admin access control to create, update, delete product routes
+@ApiTags('products')
 @Controller('products')
 export class ProductsController {
   constructor(private productService: ProductsService) {}

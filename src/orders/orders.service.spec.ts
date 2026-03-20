@@ -21,6 +21,7 @@ describe('OrdersService', () => {
     create: jest.fn(),
     save: jest.fn(),
     delete: jest.fn(),
+    remove: jest.fn(),
   };
 
   const mockProductRepository = {
@@ -90,7 +91,7 @@ describe('OrdersService', () => {
 
       const result = await service.getAllOrders();
 
-      expect(result).toEqual({ msg: 'Orders retrieved successfully', orders: mockOrders });
+      expect(result).toEqual({ message: 'Orders retrieved successfully', orders: mockOrders });
       expect(mockOrderRepository.find).toHaveBeenCalledWith({
         relations: ['user', 'items', 'items.product'],
       });
@@ -102,7 +103,7 @@ describe('OrdersService', () => {
       const result = await service.getAllOrders();
 
       expect(result).toEqual({
-        msg: 'Orders retrieved successfully',
+        message: 'Orders retrieved successfully',
         orders: [],
       });
     });
@@ -136,8 +137,7 @@ describe('OrdersService', () => {
       const result = await service.getOrderById(1, mockReq);
 
       expect(result).toEqual({
-        statusCode: 200,
-        msg: 'Order retrieved successfully',
+        message: 'Order retrieved successfully',
         order: mockOrder,
       });
       expect(mockOrderRepository.findOne).toHaveBeenCalledWith({
@@ -202,8 +202,7 @@ describe('OrdersService', () => {
         relations: ['user', 'items', 'items.product'],
       });
       expect(result).toEqual({
-        statusCode: 200,
-        msg: 'Orders retrieved successfully',
+        message: 'Orders retrieved successfully',
         orders: [mockOrder],
       });
     });
@@ -259,7 +258,7 @@ describe('OrdersService', () => {
       const result = await service.createOrder(createOrderParams, mockReq);
 
       expect(canAccessUser).toHaveBeenCalledWith(mockReq, mockUser.id);
-      expect(result).toEqual({ msg: 'Order created successfully!', order: mockOrder });
+      expect(result).toEqual({ message: 'Order created successfully!', order: mockOrder });
     });
 
     it('should throw BAD_REQUEST for invalid user ID (zero)', async () => {
@@ -340,7 +339,7 @@ describe('OrdersService', () => {
 
       const result = await service.createOrder(paramsWithoutItems, mockReq);
 
-      expect(result.msg).toBe('Order created successfully!');
+      expect(result.message).toBe('Order created successfully!');
       expect(mockProductRepository.find).not.toHaveBeenCalled();
     });
 
@@ -410,7 +409,7 @@ describe('OrdersService', () => {
       const result = await service.updateOrder(1, updateOrderParams, mockReq);
 
       expect(canAccessUser).toHaveBeenCalledWith(mockReq, mockOrder.user.id);
-      expect(result).toEqual({ msg: 'Order updated successfully!', statusCode: 200 });
+      expect(result).toEqual({ message: 'Order updated successfully!' });
     });
 
     it('should throw BAD_REQUEST for invalid order ID (zero)', async () => {
@@ -518,7 +517,7 @@ describe('OrdersService', () => {
 
       const result = await service.updateOrder(1, {}, mockReq);
 
-      expect(result.msg).toBe('Order updated successfully!');
+      expect(result.message).toBe('Order updated successfully!');
       expect(mockOrderRepository.save).toHaveBeenCalledWith(mockOrder);
     });
 
@@ -551,21 +550,21 @@ describe('OrdersService', () => {
   describe('deleteOrder', () => {
     it('should delete an order successfully', async () => {
       mockOrderRepository.findOne.mockResolvedValue(mockOrder);
-      mockOrderRepository.delete.mockResolvedValue({ affected: 1 });
+      mockOrderRepository.remove.mockResolvedValue(mockOrder);
       (canAccessUser as jest.Mock).mockImplementation(() => undefined);
 
       const result = await service.deleteOrder(1, mockReq);
 
       expect(canAccessUser).toHaveBeenCalledWith(mockReq, mockOrder.user.id);
-      expect(result).toEqual({ msg: 'Order deleted successfully', statusCode: 200 });
-      expect(mockOrderRepository.delete).toHaveBeenCalledWith(1);
+      expect(result).toEqual({ message: 'Order deleted successfully' });
+      expect(mockOrderRepository.remove).toHaveBeenCalledWith(mockOrder);
     });
 
     it('should throw BAD_REQUEST for invalid order ID (zero)', async () => {
       await expect(service.deleteOrder(0, mockReq)).rejects.toThrow(
         new HttpException('Invalid Order ID', HttpStatus.BAD_REQUEST),
       );
-      expect(mockOrderRepository.delete).not.toHaveBeenCalled();
+      expect(mockOrderRepository.remove).not.toHaveBeenCalled();
     });
 
     it('should throw BAD_REQUEST for invalid order ID (negative)', async () => {
@@ -596,7 +595,7 @@ describe('OrdersService', () => {
 
     it('should propagate database errors', async () => {
       mockOrderRepository.findOne.mockResolvedValue(mockOrder);
-      mockOrderRepository.delete.mockRejectedValue(
+      mockOrderRepository.remove.mockRejectedValue(
         new Error('Database deletion failed'),
       );
 
@@ -607,7 +606,7 @@ describe('OrdersService', () => {
 
     it('should wrap all errors as INTERNAL_SERVER_ERROR', async () => {
       mockOrderRepository.findOne.mockResolvedValue(mockOrder);
-      mockOrderRepository.delete.mockRejectedValue(
+      mockOrderRepository.remove.mockRejectedValue(
         new Error('Unexpected error'),
       );
 

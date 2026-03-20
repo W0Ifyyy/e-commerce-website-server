@@ -13,7 +13,9 @@ import { CheckoutService } from './checkout.service';
 import { Public } from 'utils/publicDecorator';
 import { Request } from 'express';
 import { JwtAuthGuard } from 'src/auth/jwt.auth.guard';
+import { ApiTags } from '@nestjs/swagger';
 
+@ApiTags('checkout')
 @Controller('checkout')
 export class CheckoutController {
   constructor(private readonly checkoutService: CheckoutService) {}
@@ -44,10 +46,7 @@ export class CheckoutController {
         request.rawBody,
       );
     } catch (err) {
-      throw new HttpException(
-        `Webhook Error: ${err.message}`,
-        HttpStatus.BAD_REQUEST,
-      );
+      throw new HttpException('Webhook processing failed', HttpStatus.BAD_REQUEST);
     }
   }
 }

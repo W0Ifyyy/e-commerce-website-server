@@ -401,7 +401,8 @@ describe('AuthService', () => {
     });
 
     it('should log errors before throwing', async () => {
-      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+      const { Logger } = require('@nestjs/common');
+      const loggerWarnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
       mockJwtService.verify.mockImplementation(() => {
         throw new Error('Unexpected error');
       });
@@ -410,8 +411,8 @@ describe('AuthService', () => {
         UnauthorizedException,
       );
 
-      expect(consoleLogSpy).toHaveBeenCalled();
-      consoleLogSpy.mockRestore();
+      expect(loggerWarnSpy).toHaveBeenCalled();
+      loggerWarnSpy.mockRestore();
     });
 
     it('should throw UnauthorizedException for any unexpected errors', async () => {

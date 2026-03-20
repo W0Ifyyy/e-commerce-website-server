@@ -105,7 +105,7 @@ describe('CheckoutController', () => {
 
       await expect(controller.handleWebhook(signature, req)).rejects.toMatchObject({
         status: HttpStatus.BAD_REQUEST,
-        message: 'Webhook Error: Invalid signature',
+        message: 'Webhook processing failed',
       });
     });
   });

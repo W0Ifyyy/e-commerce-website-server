@@ -2,6 +2,7 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -11,6 +12,8 @@ import { compareTokens, hashToken } from 'utils/hashingTokens';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private usersService: UserService,
     private jwtService: JwtService,
@@ -89,7 +92,7 @@ export class AuthService {
 
       return { access_token: newAccessToken, refresh_token: newRefreshToken };
     } catch (error) {
-      console.log('Refresh token error:', error?.message);
+      this.logger.warn(`Refresh token error: ${error?.message}`);
       throw new UnauthorizedException('Invalid refresh token');
     }
   }

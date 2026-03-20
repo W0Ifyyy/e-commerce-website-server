@@ -5,6 +5,7 @@ import * as cookieParser from 'cookie-parser';
 import * as bodyParser from 'body-parser';
 import helmet from 'helmet';
 import { csrf } from './csrf';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 
 // Validate required secrets at startup
 function validateSecrets() {
@@ -124,6 +125,15 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('E-Commerce API')
+    .setDescription('REST API for the e-commerce platform — authentication, products, orders, checkout, and user management.')
+    .setVersion('1.0')
+    .addCookieAuth('access_token')
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api/docs', app, document);
 
   await app.listen(process.env.PORT ?? 5000);
 }

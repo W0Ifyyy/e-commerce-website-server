@@ -18,8 +18,8 @@ export class UserService {
   ) {}
 
   async getAllUsers() {
-    let users = await this.usersRepository.find({ relations: ['orders'] });
-    return users;
+    const users = await this.usersRepository.find({ relations: ['orders'] });
+    return users.map(({ refreshToken: _, password: __, ...safe }) => safe);
   }
   async getUserById(id: number) {
    // Validate ID
@@ -65,7 +65,7 @@ export class UserService {
       });
       // Return success message
       return {
-        msg: 'User created succesfully!',
+        message: 'User created successfully!',
         user: { ...newUser, password: null },
       };
     } catch (error: any) {
@@ -85,15 +85,26 @@ export class UserService {
     if (!params) {
       throw new HttpException('Update parameters are required', HttpStatus.BAD_REQUEST);
     }
+
+    const updatePayload: IUpdateUser & { isEmailVerified?: boolean } = { ...params };
+
+    // If email is being changed, revoke email verification
+    if (params.email) {
+      const existing = await this.usersRepository.findOne({ where: { id }, select: ['email'] });
+      if (existing && params.email !== existing.email) {
+        updatePayload.isEmailVerified = false;
+      }
+    }
+
     // Update user
-    const result = await this.usersRepository.update(id, params);
+    const result = await this.usersRepository.update(id, updatePayload);
     if (result.affected === 0) {
       throw new HttpException(
         'User with this id does not exist!',
         HttpStatus.NOT_FOUND,
       );
     }
-    return { msg: 'User updated successfully!' };
+    return { message: 'User updated successfully!' };
   }
   async deleteUserById(id: number) {
     // Validate ID
@@ -108,7 +119,7 @@ export class UserService {
           "The user you're trying to delete does not exist!",
           HttpStatus.NOT_FOUND,
         );
-      return { msg: 'User deleted succesfully' };
+      return { message: 'User deleted successfully' };
     } catch (error) {
       if (error instanceof HttpException) throw error;
       this.logger.error(
@@ -204,7 +215,7 @@ export class UserService {
           HttpStatus.NOT_FOUND,
         );
       }
-      return { msg: 'Password changed successfully!' };
+      return { message: 'Password changed successfully!' };
     } catch (error) {
       if (error instanceof HttpException) throw error;
       this.logger.error(

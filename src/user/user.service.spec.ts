@@ -133,7 +133,7 @@ describe('UserService', () => {
 
       const result = await service.createUser(mockParams);
 
-      expect(result.msg).toBe('User created succesfully!');
+      expect(result.message).toBe('User created successfully!');
       expect(result.user.password).toBeNull();
       expect(mockRepository.save).toHaveBeenCalled();
     });
@@ -196,7 +196,7 @@ describe('UserService', () => {
 
       const result = await service.updateUser(1, { name: 'Updated' });
 
-      expect(result.msg).toBe('User updated successfully!');
+      expect(result.message).toBe('User updated successfully!');
       expect(mockRepository.update).toHaveBeenCalledWith(1, {
         name: 'Updated',
       });
@@ -226,7 +226,7 @@ describe('UserService', () => {
 
       const result = await service.deleteUserById(1);
 
-      expect(result.msg).toBe('User deleted succesfully');
+      expect(result.message).toBe('User deleted successfully');
       expect(mockRepository.delete).toHaveBeenCalledWith({ id: 1 });
     });
 
@@ -338,7 +338,7 @@ describe('UserService', () => {
         'newPassword',
       );
 
-      expect(result.msg).toBe('Password changed successfully!');
+      expect(result.message).toBe('Password changed successfully!');
     });
 
     it('calls comparePassword, hashPassword and repository.update with correct args', async () => {

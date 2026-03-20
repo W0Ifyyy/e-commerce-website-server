@@ -17,7 +17,9 @@ import { UpdateOrderDto } from './dtos/UpdateOrderDto';
 import { canAccess, canAccessUser } from 'utils/canAccess';
 import { Request } from 'express';
 import { Roles } from 'utils/rolesDecorator';
+import { ApiTags } from '@nestjs/swagger';
 
+@ApiTags('orders')
 @Controller('orders')
 export class OrdersController {
   constructor(private ordersService: OrdersService) {}

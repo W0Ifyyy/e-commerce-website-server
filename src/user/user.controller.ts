@@ -23,7 +23,9 @@ import { TokenDto } from './dtos/TokenDto';
 import ConfirmResetPasswordDto from './dtos/ConfirmResetPasswordDto';
 import EmailActionsDto from './dtos/EmailActionsDto';
 import ChangePasswordDto from './dtos/ChangePasswordDto';
+import { ApiTags } from '@nestjs/swagger';
 
+@ApiTags('users')
 @Controller('user')
 export class UserController {
   constructor(private userService: UserService) {}

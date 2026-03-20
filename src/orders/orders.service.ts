@@ -58,7 +58,7 @@ export class OrdersService {
       let orders = await this.orderRepository.find({
         relations: ['user', 'items', 'items.product'],
       });
-      return { msg: 'Orders retrieved successfully', orders };
+      return { message: 'Orders retrieved successfully', orders };
     } catch (error) {
       if (error instanceof HttpException) throw error;
       this.logger.error('Failed to get all orders', (error as any)?.stack ?? String(error));
@@ -84,7 +84,7 @@ export class OrdersService {
           HttpStatus.NOT_FOUND,
         );
       canAccessUser(req, order.user.id);
-      return { statusCode: 200, msg: 'Order retrieved successfully', order };
+      return { message: 'Order retrieved successfully', order };
     } catch (error) {
       if (error instanceof HttpException) throw error;
       this.logger.error('Failed to get order by id', (error as any)?.stack ?? String(error));
@@ -107,7 +107,7 @@ export class OrdersService {
       if(!orders || orders.length === 0)
         throw new HttpException("Orders of user with given id doesnt exist!", HttpStatus.NOT_FOUND);
       
-      return { statusCode: 200, msg: "Orders retrieved successfully", orders};
+      return { message: 'Orders retrieved successfully', orders };
     } catch (error) {
       if (error instanceof HttpException) throw error;
       this.logger.error('Failed to get orders by user id', (error as any)?.stack ?? String(error));
@@ -203,7 +203,7 @@ export class OrdersService {
       const savedOrder = await this.orderRepository.save(order);
 
       return {
-        msg: 'Order created successfully!',
+        message: 'Order created successfully!',
         order: savedOrder,
       };
     } catch (error) {
@@ -289,7 +289,7 @@ export class OrdersService {
       }
 
       await this.orderRepository.save(order);
-      return { msg: 'Order updated successfully!', statusCode: 200 };
+      return { message: 'Order updated successfully!' };
     } catch (error: any) {
       if (error instanceof HttpException) throw error;
       this.logger.error('Failed to update order', (error as any)?.stack ?? String(error));
@@ -314,7 +314,7 @@ export class OrdersService {
       canAccessUser(req, order.user.id);
       // Use remove() instead of delete() to prevent TOCTOU race condition
       await this.orderRepository.remove(order);
-      return { msg: 'Order deleted successfully', statusCode: 200 };
+      return { message: 'Order deleted successfully' };
     } catch (error: any) {
       if (error instanceof HttpException) throw error;
       this.logger.error('Failed to delete order', (error as any)?.stack ?? String(error));

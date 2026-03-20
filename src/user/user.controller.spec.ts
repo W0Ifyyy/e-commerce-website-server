@@ -170,7 +170,7 @@ describe('UserController', () => {
         name: 'Updated Name',
         email: 'updated@test.com',
       };
-      const mockResponse = { msg: 'User updated successfully!' };
+      const mockResponse = { message: 'User updated successfully!' };
       mockUserService.updateUser.mockResolvedValue(mockResponse);
 
       const result = await controller.updateUser(userId, updateDto, userReq);
@@ -184,7 +184,7 @@ describe('UserController', () => {
     it('should handle partial updates', async () => {
       const userId = 2;
       const updateDto: UpdateUserDto = { name: 'New Name Only' };
-      mockUserService.updateUser.mockResolvedValue({ msg: 'User updated successfully!' });
+      mockUserService.updateUser.mockResolvedValue({ message: 'User updated successfully!' });
 
       await controller.updateUser(userId, updateDto, userReq);
 
@@ -195,7 +195,7 @@ describe('UserController', () => {
     it('should handle email-only updates', async () => {
       const userId = 3;
       const updateDto: UpdateUserDto = { email: 'newemail@test.com' };
-      mockUserService.updateUser.mockResolvedValue({ msg: 'User updated successfully!' });
+      mockUserService.updateUser.mockResolvedValue({ message: 'User updated successfully!' });
 
       await controller.updateUser(userId, updateDto, userReq);
 
@@ -235,7 +235,7 @@ describe('UserController', () => {
     it('should handle empty update DTO', async () => {
       const userId = 1;
       const updateDto: UpdateUserDto = {};
-      mockUserService.updateUser.mockResolvedValue({ msg: 'User updated successfully!' });
+      mockUserService.updateUser.mockResolvedValue({ message: 'User updated successfully!' });
 
       await controller.updateUser(userId, updateDto, userReq);
 
@@ -247,7 +247,7 @@ describe('UserController', () => {
   describe('deleteUserById', () => {
     it('should delete a user successfully', async () => {
       const userId = 1;
-      const mockResponse = { msg: 'User deleted succesfully' };
+      const mockResponse = { message: 'User deleted successfully' };
       mockUserService.deleteUserById.mockResolvedValue(mockResponse);
 
       const result = await controller.deleteUserById(userReq, userId);
@@ -294,7 +294,7 @@ describe('UserController', () => {
         oldPassword: 'oldPass123',
         newPassword: 'newPass456',
       };
-      const mockResponse = { msg: 'Password changed successfully!' };
+      const mockResponse = { message: 'Password changed successfully!' };
       mockUserService.changePassword.mockResolvedValue(mockResponse);
 
       const result = await controller.changePassword(userReq, userId, changePasswordDto as any);

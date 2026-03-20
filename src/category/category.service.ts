@@ -67,7 +67,7 @@ export class CategoryService {
       );
     let newCategory = this.categoryRepository.create(params);
     await this.categoryRepository.save(newCategory);
-    return { msg: 'Category created succesfully!' };
+    return { message: 'Category created successfully!' };
   }
 
   async deleteCategory(id: number) {
@@ -81,7 +81,7 @@ export class CategoryService {
         HttpStatus.NOT_FOUND,
       );
     await this.categoryRepository.delete({ id });
-    return { msg: 'Category deleted succesfully!' };
+    return { message: 'Category deleted successfully!' };
   }
 
   async updateCategory(id: number, params: IUpdateCategory) {
@@ -95,6 +95,6 @@ export class CategoryService {
         HttpStatus.NOT_FOUND,
       );
     await this.categoryRepository.update({ id }, params);
-    return { msg: 'Category updated succesfully!', statusCode: 200 };
+    return { message: 'Category updated successfully!' };
   }
 }

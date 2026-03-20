@@ -339,7 +339,7 @@ describe('ProductsController', () => {
         imageUrl: 'https://example.com/laptop.jpg',
       };
 
-      const mockResponse = { msg: 'Product created succesfully!' };
+      const mockResponse = { message: 'Product created successfully!' };
       mockProductsService.createProduct.mockResolvedValue(mockResponse);
 
       const result = await controller.createProduct(mockCreateProductParams);
@@ -388,7 +388,7 @@ describe('ProductsController', () => {
   describe('deleteProduct', () => {
     it('should delete product with given id', async () => {
       const mockResponse = {
-        msg: 'Product deleted succesfully!',
+        message: 'Product deleted successfully!',
         statusCode: 200,
       };
 
@@ -427,7 +427,7 @@ describe('ProductsController', () => {
       };
 
       const mockResponse = {
-        msg: 'Product updated succesfully!',
+        message: 'Product updated successfully!',
         statusCode: 200,
       };
 

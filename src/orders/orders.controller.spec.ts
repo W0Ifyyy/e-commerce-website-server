@@ -65,7 +65,7 @@ describe('OrdersController', () => {
   describe('getOrders', () => {
     it('should return all orders', async () => {
       const mockResponse = {
-        msg: 'Orders retrieved successfully',
+        message: 'Orders retrieved successfully',
         orders: [mockOrder],
       };
 
@@ -79,7 +79,7 @@ describe('OrdersController', () => {
     });
 
     it('should return empty orders array', async () => {
-      const mockResponse = { msg: 'Orders retrieved successfully', orders: [] };
+      const mockResponse = { message: 'Orders retrieved successfully', orders: [] };
 
       mockOrdersService.getAllOrders.mockResolvedValue(mockResponse);
 
@@ -116,8 +116,7 @@ describe('OrdersController', () => {
   describe('getOrderById', () => {
     it('should return an order by id', async () => {
       const mockResponse = {
-        statusCode: 200,
-        msg: 'Order retrieved successfully',
+        message: 'Order retrieved successfully',
         order: mockOrder,
       };
       mockOrdersService.getOrderById.mockResolvedValue(mockResponse);
@@ -132,8 +131,7 @@ describe('OrdersController', () => {
     it('should pass correct id to service', async () => {
       const orderId = 42;
       mockOrdersService.getOrderById.mockResolvedValue({
-        statusCode: 200,
-        msg: 'Order retrieved successfully',
+        message: 'Order retrieved successfully',
         order: { ...mockOrder, id: orderId },
       });
 
@@ -191,8 +189,7 @@ describe('OrdersController', () => {
   describe('getOrdersByUserId', () => {
     it('should return orders for a userId and call canAccessUser', async () => {
       const mockResponse = {
-        statusCode: 200,
-        msg: 'Orders retrieved successfully',
+        message: 'Orders retrieved successfully',
         orders: [mockOrder],
       };
 
@@ -234,12 +231,10 @@ describe('OrdersController', () => {
       userId: 1,
       name: 'New Order',
       items: [{ productId: 1, quantity: 2 }],
-      totalAmount: 200,
-      status: 'PENDING',
     };
 
     it('should create an order successfully', async () => {
-      const mockResponse = { msg: 'Order created successfully!', order: mockOrder };
+      const mockResponse = { message: 'Order created successfully!', order: mockOrder };
       mockOrdersService.createOrder.mockResolvedValue(mockResponse);
 
       const result = await controller.createOrder(createOrderDto, mockReq);
@@ -270,7 +265,7 @@ describe('OrdersController', () => {
     };
 
     it('should update an order successfully', async () => {
-      const mockResponse = { msg: 'Order updated successfully!', statusCode: 200 };
+      const mockResponse = { message: 'Order updated successfully!' };
       mockOrdersService.updateOrder.mockResolvedValue(mockResponse);
 
       const result = await controller.updateOrder(1, updateOrderDto, mockReq);
@@ -286,7 +281,7 @@ describe('OrdersController', () => {
 
   describe('deleteOrder', () => {
     it('should delete an order successfully', async () => {
-      const mockResponse = { msg: 'Order deleted successfully', statusCode: 200 };
+      const mockResponse = { message: 'Order deleted successfully' };
       mockOrdersService.deleteOrder.mockResolvedValue(mockResponse);
 
       const result = await controller.deleteOrder(1, mockReq);

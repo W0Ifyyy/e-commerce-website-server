@@ -241,7 +241,7 @@ export class ProductsService {
       category: categoryEntity,
     });
     await this.productRepository.save(newProduct);
-    return { msg: 'Product created succesfully!' };
+    return { message: 'Product created successfully!' };
   }
 
   async deleteProduct(id: number) {
@@ -255,7 +255,7 @@ export class ProductsService {
         HttpStatus.NOT_FOUND,
       );
     await this.productRepository.delete({ id });
-    return { msg: 'Product deleted succesfully!', statusCode: 200 };
+    return { message: 'Product deleted successfully!' };
   }
 
   async updateProduct(id: number, params: IUpdateProduct) {
@@ -282,6 +282,6 @@ export class ProductsService {
       ...params,
       category: categoryEntity,
     });
-    return { msg: 'Product updated succesfully!', statusCode: 200 };
+    return { message: 'Product updated successfully!' };
   }
 }
