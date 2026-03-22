@@ -149,17 +149,15 @@ export class ProductsService {
     const products = await this.productRepository.createQueryBuilder('product')
     .leftJoinAndSelect('product.orderItems', 'orderItems')
     .leftJoinAndSelect('product.category', 'category')
-    .where("product.name LIKE :name ESCAPE '\\\\'", {name: `%${escaped}`})
+    .where("product.name LIKE :name ESCAPE '\\\\'", {name: `%${escaped}%`})
     .getMany();
 
-    if (!products) {
+    if (products.length === 0) {
       throw new HttpException(
         'No products found matching this name',
         HttpStatus.NOT_FOUND,
       );
     }
-
-    if (products.length === 0) return null;
 
     return products;
   }
@@ -185,7 +183,7 @@ export class ProductsService {
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.orderItems', 'orderItems')
       .leftJoinAndSelect('product.category', 'category')
-      .where("product.name LIKE :name ESCAPE '\\\\'", { name: `%${escaped}` })
+      .where("product.name LIKE :name ESCAPE '\\\\'", { name: `%${escaped}%` })
       .skip(skip)
       .take(limit)
       .getManyAndCount();
@@ -205,7 +203,7 @@ export class ProductsService {
         .createQueryBuilder('product')
         .leftJoinAndSelect('product.orderItems', 'orderItems')
         .leftJoinAndSelect('product.category', 'category')
-        .where("product.name LIKE :name ESCAPE '\\\\'", { name: `%${escaped}` })
+        .where("product.name LIKE :name ESCAPE '\\\\'", { name: `%${escaped}%` })
         .skip(0)
         .take(limit)
         .getManyAndCount();

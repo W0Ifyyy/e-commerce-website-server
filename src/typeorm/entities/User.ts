@@ -46,7 +46,9 @@ export class User {
   @UpdateDateColumn({ type: 'timestamp' })
   updatedAt: Date;
 
-  @Column({ nullable: true })
+  // select: false — excluded from all default find() queries.
+  // Use addSelect('user.refreshToken') in QueryBuilder when needed.
+  @Column({ nullable: true, select: false })
   refreshToken: string;
 
   @Column({default: false})

@@ -20,9 +20,11 @@ export class AuthService {
   ) {}
   async validateUser(username: string, password: string) {
     const user = await this.usersService.findOne(username);
-    // Always perform password comparison to prevent timing attacks
-    // Use a dummy hash if user doesn't exist
-    const dummyHash = '$2b$10$dummyhashtopreventtimingattacksxxxxxxxxxxxxxxxxxxxxxxxxx';
+    // Always perform password comparison to prevent timing attacks.
+    // Dummy hash is a valid 60-char bcrypt string (salt+hash) that will never
+    // match any real password — ensures constant-time execution even when the
+    // user does not exist, preventing username enumeration via timing.
+    const dummyHash = '$2b$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ01234';
     const passwordToCompare = user?.password ?? dummyHash;
     const isPasswordValid = await comparePassword(password, passwordToCompare);
     
@@ -78,7 +80,7 @@ export class AuthService {
       const newPayload = {
         username: storedToken.name,
         sub: userId,
-        role: (storedToken as any).role,
+        role: storedToken.role,
       };
       const newAccessToken = this.jwtService.sign(newPayload, {
         expiresIn: '15m',

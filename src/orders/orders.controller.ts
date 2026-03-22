@@ -29,17 +29,19 @@ export class OrdersController {
   getOrders() {
     return this.ordersService.getAllOrders();
   }
+
+  // NOTE: "/user/:userId" must be declared BEFORE "/:id" so NestJS doesn't
+  // greedily match "user" as the :id param (ParseIntPipe would throw).
+  @Roles("admin", "user")
+  @Get("/user/:userId")
+  getOrdersByUserId(@Param('userId', ParseIntPipe) userId: number, @Req() req: Request){
+    return this.ordersService.getOrdersByUserId(userId, req);
+  }
+
   @Roles("admin", "user")
   @Get(':id')
   getOrderById(@Param('id', ParseIntPipe) id: number, @Req() req: Request) {
     return this.ordersService.getOrderById(id, req);
-  }
-
-  @Roles("admin", "user")
-  @Get("/user/:userId")
-  getOrdersByUserId(@Param('userId', ParseIntPipe) userId: number, @Req() req: Request){
-    canAccessUser(req, userId);
-    return this.ordersService.getOrdersByUserId(userId, req);
   }
 
   @Roles("admin", "user")

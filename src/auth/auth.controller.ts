@@ -1,5 +1,4 @@
 import {
-  Body,
   Controller,
   Get,
   Post,
@@ -8,6 +7,7 @@ import {
   Res,
   UseGuards,
   UnauthorizedException,
+  Body,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
@@ -90,10 +90,10 @@ export class AuthController {
   async refresh(
     @Req() req: ExpressRequest,
     @Res({ passthrough: true }) res: Response,
-    @Body('refresh_token') bodyToken?: string,
   ) {
-    const cookieToken = req?.cookies?.refresh_token as string | undefined;
-    const token = cookieToken ?? bodyToken;
+    // Refresh token must come from the httpOnly cookie only.
+    // Accepting it from the request body would undermine the path-restricted cookie security.
+    const token = req?.cookies?.refresh_token as string | undefined;
     const { access_token, refresh_token } = await this.authService.refreshToken(token);
 
     res.cookie('access_token', access_token, {

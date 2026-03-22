@@ -22,12 +22,12 @@ export class UserService {
     return users.map(({ refreshToken: _, password: __, ...safe }) => safe);
   }
   async getUserById(id: number) {
-   // Validate ID
+    // Validate ID
     if (!id || id <= 0) {
       throw new HttpException('Invalid user ID', HttpStatus.BAD_REQUEST);
     }
     // Fetch user
-    let user = await this.usersRepository.findOne({
+    const user = await this.usersRepository.findOne({
       where: { id },
       relations: ['orders', 'orders.items.product'],
     });
@@ -37,18 +37,13 @@ export class UserService {
         HttpStatus.NOT_FOUND,
       );
 
-      // Sanitize user object
-    const safeUser = {
-      ...user,
-      createdAt: user.createdAt.toISOString(),
-      password: null,
-    };
-
-    return safeUser;
+    // Omit sensitive fields entirely — never expose password or refreshToken
+    const { password: _pw, refreshToken: _rt, ...safeUser } = user;
+    return { ...safeUser, createdAt: user.createdAt.toISOString() };
   }
   async createUser(params: ICreateUser) {
     //  Check if user with that email already exists
-    let existingUser = await this.usersRepository.findOne({
+    const existingUser = await this.usersRepository.findOne({
       where: { email: params.email },
     });
     if (existingUser)
@@ -113,7 +108,7 @@ export class UserService {
     }
     try {
       // Delete user
-      let deletingUserOperation = await this.usersRepository.delete({ id });
+      const deletingUserOperation = await this.usersRepository.delete({ id });
       if (deletingUserOperation.affected === 0)
         throw new HttpException(
           "The user you're trying to delete does not exist!",
@@ -127,7 +122,7 @@ export class UserService {
         (error as any)?.stack ?? String(error),
       );
       throw new HttpException(
-        'An error occured while deleting the user',
+        'An error occurred while deleting the user',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -143,7 +138,7 @@ export class UserService {
         (error as any)?.stack ?? String(error),
       );
       throw new HttpException(
-        'An error occured while finding user by username',
+        'An error occurred while finding user by username',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -153,7 +148,12 @@ export class UserService {
   }
 
   async getRefreshToken(userId: number) {
-    const user = await this.usersRepository.findOne({ where: { id: userId } });
+    // refreshToken has select:false — must be explicitly selected
+    const user = await this.usersRepository
+      .createQueryBuilder('user')
+      .addSelect('user.refreshToken')
+      .where('user.id = :id', { id: userId })
+      .getOne();
     return user
       ? { name: user.name, role: user.role, refreshToken: user.refreshToken }
       : null;
@@ -171,8 +171,8 @@ export class UserService {
         HttpStatus.NOT_FOUND,
       );
     try {
-      // Remove refresh token
-      await this.usersRepository.update(user, { refreshToken: null });
+      // Remove refresh token — use user.id (not the entity) as update criteria
+      await this.usersRepository.update(user.id, { refreshToken: null });
     } catch (error: any) {
       if (error instanceof HttpException) throw error;
       this.logger.error(
@@ -338,7 +338,7 @@ export class UserService {
       return generic;
     } catch (error: any) {
       throw new HttpException(
-        'An error occured while sending email',
+        'An error occurred while sending email',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -374,26 +374,24 @@ export class UserService {
     const raw = (token ?? '').trim();
     if(!raw) throw new HttpException("Missing token",  HttpStatus.BAD_REQUEST);
 
-    const passwordTrimmed = (newPassword ?? '').trim();
-    if(!passwordTrimmed || passwordTrimmed.length === 0){
+    // Do NOT trim passwords — leading/trailing spaces are intentional user input
+    if (!newPassword || newPassword.length === 0) {
       throw new HttpException('Missing new password', HttpStatus.BAD_REQUEST);
     }
-    
+
     // Find user by token
     const tokenHash = sha256Hex(raw);
-    const user = await this.usersRepository.findOne({where: { forgetPasswordToken: tokenHash}})
+    const user = await this.usersRepository.findOne({ where: { forgetPasswordToken: tokenHash } });
 
-
-    if(!user) throw new HttpException('Invalid token', HttpStatus.UNAUTHORIZED);
+    if (!user) throw new HttpException('Invalid token', HttpStatus.UNAUTHORIZED);
 
     // Check token expiry
-    
-    if(!user.forgetPasswordTokenExpiry || user.forgetPasswordTokenExpiry.getTime() < Date.now()){
+    if (!user.forgetPasswordTokenExpiry || user.forgetPasswordTokenExpiry.getTime() < Date.now()) {
       throw new HttpException('Token expired', HttpStatus.UNAUTHORIZED);
     }
 
     // Update password
-    const hashedPassword = await hashPassword(passwordTrimmed);
+    const hashedPassword = await hashPassword(newPassword);
     await this.usersRepository.update(user.id, {
       password: hashedPassword,
       forgetPasswordToken: null,

@@ -55,7 +55,7 @@ export class OrdersService {
   }
   async getAllOrders() {
     try {
-      let orders = await this.orderRepository.find({
+      const orders = await this.orderRepository.find({
         relations: ['user', 'items', 'items.product'],
       });
       return { message: 'Orders retrieved successfully', orders };
@@ -74,7 +74,7 @@ export class OrdersService {
       throw new HttpException('Invalid order ID', HttpStatus.BAD_REQUEST);
     }
     try {
-      let order = await this.orderRepository.findOne({
+      const order = await this.orderRepository.findOne({
         where: { id },
         relations: ['user', 'items', 'items.product'],
       });
@@ -101,10 +101,10 @@ export class OrdersService {
     }
     canAccessUser(req, userId);
     try {
-      let orders = await this.orderRepository.find(
-        { where: { user: { id: userId }}, relations: ['user', 'items', 'items.product'] }
-      )
-      if(!orders || orders.length === 0)
+      const orders = await this.orderRepository.find(
+        { where: { user: { id: userId } }, relations: ['user', 'items', 'items.product'] }
+      );
+      if (!orders || orders.length === 0)
         throw new HttpException("Orders of user with given id doesnt exist!", HttpStatus.NOT_FOUND);
       
       return { message: 'Orders retrieved successfully', orders };
@@ -224,11 +224,10 @@ export class OrdersService {
       throw new HttpException('Invalid Order ID', HttpStatus.BAD_REQUEST);
 
     try {
-      let order = await this.orderRepository.findOne({
+      const order = await this.orderRepository.findOne({
         where: { id },
         relations: ['user', 'items', 'items.product'],
       });
-      
 
       if (!order)
         throw new HttpException(
@@ -246,7 +245,7 @@ export class OrdersService {
       }
 
       // Only admins can modify status and totalAmount to prevent payment bypass
-      const isAdmin = (req as any)?.user?.role === 'admin';
+      const isAdmin = req?.user?.role === 'admin';
 
       if (updateOrderParams.status !== undefined) {
         if (!isAdmin) {
@@ -303,8 +302,8 @@ export class OrdersService {
     if (id <= 0 || !id)
       throw new HttpException('Invalid Order ID', HttpStatus.BAD_REQUEST);
     try {
-      let order = await this.orderRepository.findOne({
-        where: {id},
+      const order = await this.orderRepository.findOne({
+        where: { id },
         relations: ['user'],
       });
       if(!order) throw new HttpException(
