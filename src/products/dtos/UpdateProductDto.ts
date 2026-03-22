@@ -27,10 +27,11 @@ export class UpdateProductDto {
   @Min(0, { message: 'Price must be at least 0' })
   price?: number;
 
+  @IsOptional()
   @IsNumber()
   @Type(() => Number)
   @IsNotEmpty()
-  category: number;
+  category?: number;
 
   @IsOptional()
   @IsUrl({}, { message: 'Image URL must be a valid URL' })

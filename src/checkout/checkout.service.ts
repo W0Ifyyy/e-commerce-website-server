@@ -6,7 +6,6 @@ import {
 } from '@nestjs/common';
 import { stripe } from '../../lib/stripe';
 import { OrdersService } from 'src/orders/orders.service';
-import { UserService } from 'src/user/user.service';
 
 @Injectable()
 export class CheckoutService {
@@ -14,7 +13,6 @@ export class CheckoutService {
 
   constructor(
     private readonly ordersService: OrdersService,
-    private readonly userService: UserService,
   ) {}
 
   async finalizeCheckout(orderId: number, userId: number | undefined) {
@@ -38,16 +36,13 @@ export class CheckoutService {
       throw new HttpException('Order has no items', HttpStatus.BAD_REQUEST);
     }
 
-    const user = await this.userService.getUserById(userId);
-    if (!user) {
-      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
-    }
-
-    const currency = (user.preferredCurrency ?? 'USD').toLowerCase();
+    const currency = (order.user.preferredCurrency ?? 'USD').toLowerCase();
 
     const line_items = order.items.map((item: any) => {
       const name = item?.product?.name ?? 'Item';
-      const unitPrice = Number(item?.product?.price ?? item?.unitPrice ?? 0);
+      // Use unitPrice (locked at order creation) — not current product price,
+      // so price changes after order creation don't break the amount check.
+      const unitPrice = Number(item?.unitPrice ?? 0);
       const quantity = Number(item?.quantity ?? 0);
 
       if (!Number.isFinite(unitPrice) || unitPrice < 0 || !Number.isFinite(quantity) || quantity <= 0) {

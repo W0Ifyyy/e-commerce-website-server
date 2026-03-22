@@ -58,8 +58,6 @@ export class UserController {
     @Body() body: EmailActionsDto,
   ) {
     const userId = req?.user?.userId;
-    canAccessUser(req, userId);
-
     const user = await this.userService.getUserById(userId);
 
     // Non-admin: force target email to own email (ignore body.email)

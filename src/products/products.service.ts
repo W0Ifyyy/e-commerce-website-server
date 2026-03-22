@@ -60,7 +60,7 @@ export class ProductsService {
   }
 
   async getProducts() {
-    let products = await this.productRepository.find({
+    const products = await this.productRepository.find({
       relations: ['orderItems', 'category'],
     });
     if (!products || products.length === 0)
@@ -107,7 +107,7 @@ export class ProductsService {
     if (!id || id <= 0) {
       throw new HttpException('Invalid product ID', HttpStatus.BAD_REQUEST);
     }
-    let product = await this.productRepository.findOne({
+    const product = await this.productRepository.findOne({
       where: { id },
       relations: ['orderItems'],
     });
@@ -220,7 +220,7 @@ export class ProductsService {
     };
   }
   async createProduct(params: ICreateProduct) {
-    let ifExists = await this.productRepository.findOne({
+    const ifExists = await this.productRepository.findOne({
       where: { name: params.name },
     });
     if (ifExists)
@@ -234,7 +234,7 @@ export class ProductsService {
     if (!categoryEntity) {
       throw new HttpException('Category not found', HttpStatus.NOT_FOUND);
     }
-    let newProduct = this.productRepository.create({
+    const newProduct = this.productRepository.create({
       ...params,
       category: categoryEntity,
     });
@@ -246,7 +246,7 @@ export class ProductsService {
     if (!id || id <= 0) {
       throw new HttpException('Invalid product ID', HttpStatus.BAD_REQUEST);
     }
-    let product = await this.productRepository.findOne({ where: { id } });
+    const product = await this.productRepository.findOne({ where: { id } });
     if (!product)
       throw new HttpException(
         'Product with this id doesnt exist!',
@@ -257,11 +257,11 @@ export class ProductsService {
   }
 
   async updateProduct(id: number, params: IUpdateProduct) {
-    let categoryEntity;
+    let categoryEntity: any;
     if (!id || id <= 0) {
       throw new HttpException('Invalid product ID', HttpStatus.BAD_REQUEST);
     }
-    let product = await this.productRepository.findOne({ where: { id } });
+    const product = await this.productRepository.findOne({ where: { id } });
     if (!product)
       throw new HttpException(
         'Product with this id doesnt exist!',
@@ -278,7 +278,9 @@ export class ProductsService {
     await this.productRepository.save({
       ...product,
       ...params,
-      category: categoryEntity,
+      // Only overwrite category when it was explicitly requested;
+      // spreading `category: undefined` would clear the relation in TypeORM.
+      ...(categoryEntity !== undefined && { category: categoryEntity }),
     });
     return { message: 'Product updated successfully!' };
   }

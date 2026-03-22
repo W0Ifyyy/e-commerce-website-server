@@ -69,7 +69,7 @@ export class AuthController {
       path: '/',
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
-    return { message: 'Logged in', csrfToken, csrf_token: csrfToken };
+    return { message: 'Logged in', csrfToken };
   }
 
   @UseGuards(JwtAuthGuard)
@@ -123,7 +123,7 @@ export class AuthController {
       path: '/',
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
-    return { message: 'Refreshed', csrfToken, csrf_token: csrfToken };
+    return { message: 'Refreshed', csrfToken };
   }
   @UseGuards(JwtAuthGuard)
   @Throttle({ default: { limit: 10, ttl: 60 } })

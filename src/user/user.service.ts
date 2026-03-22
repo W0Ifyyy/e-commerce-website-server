@@ -58,11 +58,8 @@ export class UserService {
         ...params,
         password: hashedPassword,
       });
-      // Return success message
-      return {
-        message: 'User created successfully!',
-        user: { ...newUser, password: null },
-      };
+      const { password: _pw, ...safeNewUser } = newUser;
+      return { message: 'User created successfully!', user: safeNewUser };
     } catch (error: any) {
       this.logger.error('Failed to create user', (error as any)?.stack ?? String(error));
       throw new HttpException(
@@ -195,7 +192,7 @@ export class UserService {
     if(!user) throw new HttpException("User not found", HttpStatus.NOT_FOUND);
     try {
       // Verify old password
-      let isPasswordCorrect = await comparePassword(oldPassword, user.password);
+      const isPasswordCorrect = await comparePassword(oldPassword, user.password);
       if (!isPasswordCorrect) {
         throw new HttpException(
           'Old password is incorrect',
@@ -318,6 +315,9 @@ export class UserService {
           ? `${webBase}/verifyEmail?token=${encodeURIComponent(rawToken)}`
           : `${webBase}/resetPassword?token=${encodeURIComponent(rawToken)}`;
 
+      // Set cooldown before sending — prevents bypass by forcing transport failures
+      this.touchCooldown(cooldownKey);
+
       // Send email
       await transport.sendMail({
         from: {
@@ -334,7 +334,6 @@ export class UserService {
         category: 'Integration Test',
       });
 
-      this.touchCooldown(cooldownKey);
       return generic;
     } catch (error: any) {
       throw new HttpException(

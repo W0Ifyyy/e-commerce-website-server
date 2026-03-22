@@ -104,10 +104,7 @@ export class OrdersService {
       const orders = await this.orderRepository.find(
         { where: { user: { id: userId } }, relations: ['user', 'items', 'items.product'] }
       );
-      if (!orders || orders.length === 0)
-        throw new HttpException("Orders of user with given id doesnt exist!", HttpStatus.NOT_FOUND);
-      
-      return { message: 'Orders retrieved successfully', orders };
+      return { message: 'Orders retrieved successfully', orders: orders ?? [] };
     } catch (error) {
       if (error instanceof HttpException) throw error;
       this.logger.error('Failed to get orders by user id', (error as any)?.stack ?? String(error));
